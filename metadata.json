@@ -1,0 +1,8 @@
+{
+  "name": "Remix Bus ETA Island",
+  "description": "Dynamic island and lockscreen overlay for real-time KMB bus ETAs with GPS geofencing",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

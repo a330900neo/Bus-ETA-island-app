@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Bus ETA Island</string>
+    <string name="accessibility_service_description">Enables Bus ETA Dynamic Island overlay on top of apps and the lock screen to show live bus arrival times within your stop radius.</string>
+</resources>
