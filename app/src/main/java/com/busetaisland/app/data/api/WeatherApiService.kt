@@ -36,7 +36,7 @@ interface WeatherApiService {
     suspend fun getGriddedRainfallNowcastCsv(): Response<okhttp3.ResponseBody>
 
     companion object {
-        private const val BASE_URL = "https://data.weather.gov.hk/weatherAPI/opendata/"
+            private const val BASE_URL = "https://data.weather.gov.hk/weatherAPI/opendata/"
 
         fun create(): WeatherApiService {
             val moshi = Moshi.Builder()

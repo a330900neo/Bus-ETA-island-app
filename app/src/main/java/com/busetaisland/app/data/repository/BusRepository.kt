@@ -302,7 +302,7 @@ class BusRepository(
                             msg.contains("紅") && msg.contains("暴雨") && warningList.none { it.code == "WRAINR" } ->
                                 warningList.add(WeatherWarning(code = "WRAINR", name = "紅色暴雨警告", shortLabel = "紅雨", iconEmoji = "🌧️", iconUrl = "https://www.hko.gov.hk/en/wxinfo/dailywx/images/rainr.gif", colorHex = 0xFFFF5252))
                             msg.contains("黃") && msg.contains("暴雨") && warningList.none { it.code == "WRAINA" } ->
-                                warningList.add(WeatherWarning(code = "WRAINA", name = "黃色暴雨警告", shortLabel = "黃雨", iconEmoji = "🌧️", iconUrl = "https://www.hko.gov.hk/en/wxinfo/dailywx/images/rainy.gif", colorHex = 0xFFFFD740))
+                                warningList.add(WeatherWarning(code = "WRAINA", name = "黃色暴雨警告", shortLabel = "黃雨", iconEmoji = "🌧️", iconUrl = "https://www.hko.gov.hk/en/wxinfo/dailywx/images/raina.gif", colorHex = 0xFFFFD740))
                             msg.contains("酷熱") && warningList.none { it.code == "WHOT" } ->
                                 warningList.add(WeatherWarning(code = "WHOT", name = "酷熱天氣警告", shortLabel = "酷熱", iconEmoji = "🔥", iconUrl = "https://www.hko.gov.hk/en/wxinfo/dailywx/images/vhot.gif", colorHex = 0xFFFF7043))
                             msg.contains("寒冷") && warningList.none { it.code == "WCOLD" } ->
@@ -442,7 +442,7 @@ class BusRepository(
                     code == "WRAINR" || name.contains("紅") || type?.contains("紅") == true ->
                         Triple("紅雨", 0xFFFF5252, "rainr.gif")
                     else ->
-                        Triple("黃雨", 0xFFFFD740, "rainy.gif")
+                        Triple("黃雨", 0xFFFFD740, "raina.gif")
                 }
                 WeatherWarning(
                     code = code,
