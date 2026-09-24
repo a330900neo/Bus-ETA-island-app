@@ -1077,37 +1077,39 @@ fun SettingsScreen(
 
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    // Auto-Update Cooldown Setting
+                    // Auto-Update Cooldown & Custom Refresh Setting
                     Column {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "定時自動更新冷卻 (Update Cooldown)",
+                                text = "定時自動更新 / 僅手動模式",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp,
                                 color = BusTextPrimary
                             )
                             Text(
-                                text = if (overlayConfig.nowcastCooldownMinutes == 0) "已關閉 (Off)" else "${overlayConfig.nowcastCooldownMinutes} 分鐘",
+                                text = if (overlayConfig.nowcastCooldownMinutes == 0) "僅手動更新 (0分)" else "${overlayConfig.nowcastCooldownMinutes} 分鐘/次",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp,
                                 color = if (overlayConfig.nowcastCooldownMinutes == 0) BusTextMuted else Color(0xFF00E5FF)
                             )
                         }
                         Text(
-                            text = "設定後台自動抓取天文台最新降雨網格的冷卻時間，或設為關閉。",
+                            text = "可選擇預設時間、自訂冷卻分鐘數，或設為「0分 (僅手動更新)」。",
                             fontSize = 11.5.sp,
                             color = BusTextSecondary
                         )
 
                         Spacer(modifier = Modifier.height(8.dp))
 
-                        val cooldownOptions = listOf(0, 5, 10, 12, 15, 30)
+                        // Quick Preset Options
+                        val cooldownOptions = listOf(0, 1, 3, 5, 10, 15, 30, 60)
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             cooldownOptions.forEach { mins ->
                                 val isSelected = overlayConfig.nowcastCooldownMinutes == mins
@@ -1128,11 +1130,74 @@ fun SettingsScreen(
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
-                                        text = if (mins == 0) "關閉" else "${mins}分",
+                                        text = if (mins == 0) "手動" else "${mins}分",
                                         color = if (isSelected) Color(0xFF0F172A) else BusTextSecondary,
-                                        fontSize = 11.5.sp,
+                                        fontSize = 10.5.sp,
                                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                                     )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // Custom Minute Stepper Adjustment
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color(0xFF0F172A), RoundedCornerShape(10.dp))
+                                .border(0.5.dp, Color(0x3338BDF8), RoundedCornerShape(10.dp))
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "自訂冷卻分鐘數 (Custom Interval)",
+                                fontSize = 12.sp,
+                                color = BusTextSecondary,
+                                fontWeight = FontWeight.Medium
+                            )
+
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(28.dp)
+                                        .clip(CircleShape)
+                                        .background(BusDarkSurfaceVariant)
+                                        .clickable {
+                                            viewModel.setNowcastCooldownMinutes(
+                                                (overlayConfig.nowcastCooldownMinutes - 1).coerceAtLeast(0)
+                                            )
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text("-", color = Color(0xFF00E5FF), fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                                }
+
+                                Text(
+                                    text = "${overlayConfig.nowcastCooldownMinutes} 分",
+                                    color = Color(0xFF00E5FF),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.5.sp,
+                                    modifier = Modifier.padding(horizontal = 4.dp)
+                                )
+
+                                Box(
+                                    modifier = Modifier
+                                        .size(28.dp)
+                                        .clip(CircleShape)
+                                        .background(BusDarkSurfaceVariant)
+                                        .clickable {
+                                            viewModel.setNowcastCooldownMinutes(
+                                                (overlayConfig.nowcastCooldownMinutes + 1).coerceAtMost(180)
+                                            )
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text("+", color = Color(0xFF00E5FF), fontWeight = FontWeight.Bold, fontSize = 16.sp)
                                 }
                             }
                         }
@@ -1156,22 +1221,22 @@ fun SettingsScreen(
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = "• OpenStreetMap 底圖：使用 OpenStreetMap 作為底圖圖層，清楚呈現街道與地形。",
+                                text = "• 僅手動模式 (0 分鐘)：後台不會自動抓取雷達數據，完全由手動觸發。",
                                 color = BusTextSecondary,
                                 fontSize = 11.sp
                             )
                             Text(
-                                text = "• 清晰方形網格：降雨雷達網格以清晰像素方塊 (Square Pixels) 繪製，無模糊圓點，精準對應天文台坐標。",
+                                text = "• 靈動島獨立手動刷新：長按靈動島降雨地圖 1 秒，即可單獨刷新雷達數據，不刷新整體巴士 ETA。",
                                 color = BusTextSecondary,
                                 fontSize = 11.sp
                             )
                             Text(
-                                text = "• 手動刷新獨立：長按靈動島手動刷新時僅刷新巴士與天氣，不會重複下載降雨地圖，節省流量。",
+                                text = "• 自訂更新時間：可透過按鈕 +/- 或快選晶片設定任意分鐘 (1-180分鐘) 自訂自動更新間隔。",
                                 color = BusTextSecondary,
                                 fontSize = 11.sp
                             )
                             Text(
-                                text = "• 幀時間顯示：雷達地圖頂部即時顯示當前幀預測時間與 (+30/+60/+90/+120 分鐘) 標註。",
+                                text = "• OpenStreetMap 底圖與方形網格：雷達雨網格以高解析像素方塊精準對應天文台坐標。",
                                 color = BusTextSecondary,
                                 fontSize = 11.sp
                             )

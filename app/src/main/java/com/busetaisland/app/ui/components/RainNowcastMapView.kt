@@ -9,6 +9,8 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
@@ -16,6 +18,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -26,14 +29,18 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -44,9 +51,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -58,7 +69,9 @@ import com.busetaisland.app.data.location.UserLocationState
 import com.busetaisland.app.data.model.RainNowcastData
 import com.busetaisland.app.data.model.RainNowcastFrame
 import com.busetaisland.app.service.OverlayDisplayConfig
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
@@ -72,6 +85,7 @@ import kotlin.math.tan
  * - Crisp square pixels for radar rainfall data (no blurred circles)
  * - Clean frame time display with continuous auto-looping animation
  * - User GPS marker & intensity legend
+ * - Hold for 1 second gesture to manually refresh rain map only (does not refresh whole island)
  */
 @Composable
 fun RainNowcastMapView(
@@ -82,6 +96,13 @@ fun RainNowcastMapView(
 ) {
     val frames = nowcastData?.frames ?: emptyList()
     var currentFrameIndex by remember { mutableIntStateOf(0) }
+
+    // Manual refresh hold states
+    var isRefreshingMap by remember { mutableStateOf(false) }
+    var pressHoldProgress by remember { mutableFloatStateOf(0f) }
+    var updateSuccessMsg by remember { mutableStateOf<String?>(null) }
+    val coroutineScope = rememberCoroutineScope()
+    val haptic = LocalHapticFeedback.current
 
     // Auto-fetch radar nowcast frames when view enters composition if data is not yet loaded
     LaunchedEffect(Unit) {
@@ -140,6 +161,84 @@ fun RainNowcastMapView(
         )
     }
 
+    // Pointer input modifier to handle holding rain map for 1 second (1000ms) to trigger manual refresh
+    val rainMapPointerModifier = Modifier.pointerInput(Unit) {
+        val touchSlop = viewConfiguration.touchSlop
+        val holdTimeoutMs = 1000L
+
+        coroutineScope {
+            awaitEachGesture {
+                val down = awaitFirstDown(requireUnconsumed = true)
+                down.consume()
+                var isDragging = false
+                var isCompleted = false
+                var totalDx = 0f
+                var totalDy = 0f
+
+                val holdJob = launch {
+                    val startTime = System.currentTimeMillis()
+                    while (true) {
+                        val elapsed = System.currentTimeMillis() - startTime
+                        pressHoldProgress = (elapsed.toFloat() / holdTimeoutMs).coerceIn(0f, 1f)
+                        if (elapsed >= holdTimeoutMs) {
+                            break
+                        }
+                        delay(16L)
+                    }
+
+                    if (!isDragging) {
+                        isCompleted = true
+                        try {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        } catch (e: Exception) {
+                            // Ignore
+                        }
+                        isRefreshingMap = true
+                        pressHoldProgress = 0f
+
+                        val result = com.busetaisland.app.BusApp.instance.repository.fetchRainNowcast(force = true)
+                        isRefreshingMap = false
+                        updateSuccessMsg = if (result != null) "✓ 雷達地圖已即時更新" else "✓ 已刷新數據"
+                        delay(2200L)
+                        updateSuccessMsg = null
+                    }
+                }
+
+                try {
+                    while (true) {
+                        val event = awaitPointerEvent(PointerEventPass.Main)
+                        val change = event.changes.firstOrNull { it.id == down.id } ?: break
+
+                        if (change.pressed) {
+                            val dx = change.position.x - change.previousPosition.x
+                            val dy = change.position.y - change.previousPosition.y
+                            totalDx += dx
+                            totalDy += dy
+                            val totalDist = Math.hypot(totalDx.toDouble(), totalDy.toDouble()).toFloat()
+
+                            if (totalDist > touchSlop) {
+                                if (!isDragging) {
+                                    isDragging = true
+                                    holdJob.cancel()
+                                    pressHoldProgress = 0f
+                                }
+                            }
+                            change.consume()
+                        } else {
+                            holdJob.cancel()
+                            pressHoldProgress = 0f
+                            change.consume()
+                            break
+                        }
+                    }
+                } finally {
+                    holdJob.cancel()
+                    pressHoldProgress = 0f
+                }
+            }
+        }
+    }
+
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -149,6 +248,25 @@ fun RainNowcastMapView(
             .padding(8.dp)
             .testTag("rain_nowcast_map_container")
     ) {
+        // Progress indicator bar during 1-second press or background refresh
+        if (pressHoldProgress > 0f || isRefreshingMap) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(3.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(Color(0xFF1E293B))
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(if (pressHoldProgress > 0f) pressHoldProgress else 1f)
+                        .fillMaxHeight()
+                        .background(Color(0xFF00E5FF))
+                )
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+        }
+
         // Header: Clean Frame Time Display (No pause button, no 1234 numbers)
         Row(
             modifier = Modifier
@@ -188,10 +306,19 @@ fun RainNowcastMapView(
                 }
             }
 
-            // Subtitle status
+            // Subtitle status or hold gesture progress
             Text(
-                text = "即時雷達演播",
-                color = Color(0xFF64748B),
+                text = when {
+                    pressHoldProgress > 0f -> "⏱️ 長按1秒更新 (${(pressHoldProgress * 100).toInt()}%)"
+                    isRefreshingMap -> "⚡ 正在更新雷達..."
+                    updateSuccessMsg != null -> updateSuccessMsg!!
+                    else -> "💡 長按1秒單獨更新地圖"
+                },
+                color = when {
+                    pressHoldProgress > 0f || isRefreshingMap -> Color(0xFF00E5FF)
+                    updateSuccessMsg != null -> Color(0xFF00E676)
+                    else -> Color(0xFF64748B)
+                },
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Medium
             )
@@ -205,6 +332,7 @@ fun RainNowcastMapView(
                 .clip(RoundedCornerShape(12.dp))
                 .background(Color(0xFF090D16))
                 .border(0.5.dp, Color(0x3338BDF8), RoundedCornerShape(12.dp))
+                .then(rainMapPointerModifier)
         ) {
             val density = LocalDensity.current
             val canvasW = with(density) { maxWidth.toPx() }

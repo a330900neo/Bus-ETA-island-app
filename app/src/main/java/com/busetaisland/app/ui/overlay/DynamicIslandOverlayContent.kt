@@ -455,7 +455,7 @@ private suspend fun PointerInputScope.handleIslandTouch(
 
     coroutineScope {
         awaitEachGesture {
-            val down = awaitFirstDown(requireUnconsumed = false)
+            val down = awaitFirstDown(requireUnconsumed = true)
             var isDragging = false
             var isLongPressTriggered = false
             var totalDx = 0f
