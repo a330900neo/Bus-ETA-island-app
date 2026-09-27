@@ -71,11 +71,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -85,6 +88,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.busetaisland.app.data.local.GeoPoint
 import com.busetaisland.app.data.local.GeofenceAreaEntity
 import com.busetaisland.app.data.location.LocationTracker
@@ -496,7 +500,19 @@ fun GeofenceAreaEditorDialog(
                         val minTileY = (minWorldY / 256.0).toInt().coerceAtLeast(0)
                         val maxTileY = (maxWorldY / 256.0).toInt().coerceAtLeast(0)
 
-                        // 1. Render Actual Background Map Tiles
+                        val context = LocalContext.current
+                        val osmDarkColorMatrix = remember {
+                            ColorMatrix(
+                                floatArrayOf(
+                                    -0.65f,  0.00f,  0.00f, 0.0f, 175f,
+                                     0.00f, -0.65f,  0.00f, 0.0f, 175f,
+                                     0.00f,  0.00f, -0.65f, 0.0f, 175f,
+                                     0.00f,  0.00f,  0.00f, 1.0f,   0f
+                                )
+                            )
+                        }
+
+                        // 1. Render Actual Background Map Tiles using OpenStreetMap (No API key required)
                         Box(modifier = Modifier.fillMaxSize()) {
                             for (tx in minTileX..maxTileX) {
                                 for (ty in minTileY..maxTileY) {
@@ -506,15 +522,16 @@ fun GeofenceAreaEditorDialog(
                                     val screenPx = (containerWidthPx / 2.0 + (tileWorldX - centerWorldX) * scaleFactor).toFloat()
                                     val screenPy = (containerHeightPx / 2.0 + (tileWorldY - centerWorldY) * scaleFactor).toFloat()
 
-                                    val tileUrl = if (mapTheme == "dark") {
-                                        "https://a.basemaps.cartocdn.com/dark_all/$zoomLevel/$tx/$ty@2x.png"
-                                    } else {
-                                        "https://a.basemaps.cartocdn.com/rastertiles/voyager/$zoomLevel/$tx/$ty@2x.png"
-                                    }
+                                    val tileUrl = "https://tile.openstreetmap.org/$zoomLevel/$tx/$ty.png"
 
                                     AsyncImage(
-                                        model = tileUrl,
-                                        contentDescription = "Map Tile",
+                                        model = ImageRequest.Builder(context)
+                                            .data(tileUrl)
+                                            .setHeader("User-Agent", "HKBusDynamicIsland/1.0 (Android)")
+                                            .crossfade(true)
+                                            .build(),
+                                        contentDescription = "OpenStreetMap Tile",
+                                        colorFilter = if (mapTheme == "dark") ColorFilter.colorMatrix(osmDarkColorMatrix) else null,
                                         contentScale = ContentScale.FillBounds,
                                         modifier = Modifier
                                             .size(256.dp)
@@ -524,6 +541,18 @@ fun GeofenceAreaEditorDialog(
                                     )
                                 }
                             }
+
+                            // OpenStreetMap Attribution
+                            Text(
+                                text = "© OpenStreetMap",
+                                fontSize = 9.sp,
+                                color = BusTextMuted.copy(alpha = 0.7f),
+                                modifier = Modifier
+                                    .align(Alignment.BottomStart)
+                                    .padding(4.dp)
+                                    .background(Color.Black.copy(alpha = 0.4f), RoundedCornerShape(2.dp))
+                                    .padding(horizontal = 4.dp, vertical = 1.dp)
+                            )
                         }
 
                         // 2. Gesture Handling & Polygon Rendering Overlay

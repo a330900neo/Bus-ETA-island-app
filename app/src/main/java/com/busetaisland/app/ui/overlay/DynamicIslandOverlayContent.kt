@@ -1094,23 +1094,24 @@ private fun BusStopItemRow(
     val isNwfb = co == "NWFB"
 
     val mtrLine = if (isMtr) MtrRegistry.findLine(route) else null
+    val mtrLineColor = mtrLine?.color ?: MtrRegistry.getRouteColor(co, route)
 
     val routeTextColor = when {
-        isMtr -> mtrLine?.color ?: Color(0xFFED1D24)
+        isMtr -> Color.White
         isGmb -> Color(0xFF00E676)
         isCtb -> Color(0xFFFFD600)
         isNwfb -> Color(0xFFFF9100)
         else -> Color(0xFFD0BCFF)
     }
     val boxBorderColor = when {
-        isMtr -> (mtrLine?.color ?: Color(0xFFED1D24)).copy(alpha = 0.6f)
+        isMtr -> mtrLineColor.copy(alpha = 0.5f)
         isGmb -> Color(0x5500E676)
         isCtb -> Color(0x55FFD600)
         isNwfb -> Color(0x55FF9100)
         else -> Color(0x38D0BCFF)
     }
     val boxBgColor = when {
-        isMtr -> (mtrLine?.color ?: Color(0xFFED1D24)).copy(alpha = 0.15f)
+        isMtr -> Color(0xFF191820)
         else -> Color(0xFF191820)
     }
     val destTextColor = Color(0xFFE6E1E5)
@@ -1152,16 +1153,39 @@ private fun BusStopItemRow(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                // Route Number (e.g. 1A, 74B, 16M)
-                Text(
-                    text = route,
-                    color = routeTextColor,
-                    fontWeight = FontWeight.Black,
-                    fontSize = 12.sp,
-                    letterSpacing = 0.2.sp,
-                    maxLines = 1,
-                    modifier = Modifier.testTag("island_route_text_${route}")
-                )
+                if (isMtr) {
+                    // MTR Line Route Label shown filled solid color and route name white
+                    Box(
+                        modifier = Modifier
+                            .background(
+                                color = mtrLineColor,
+                                shape = RoundedCornerShape(5.dp)
+                            )
+                            .padding(horizontal = 5.dp, vertical = 1.5.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = route,
+                            color = Color.White,
+                            fontWeight = FontWeight.Black,
+                            fontSize = 11.5.sp,
+                            letterSpacing = 0.2.sp,
+                            maxLines = 1,
+                            modifier = Modifier.testTag("island_route_text_${route}")
+                        )
+                    }
+                } else {
+                    // Route Number (e.g. 1A, 74B, 16M)
+                    Text(
+                        text = route,
+                        color = routeTextColor,
+                        fontWeight = FontWeight.Black,
+                        fontSize = 12.sp,
+                        letterSpacing = 0.2.sp,
+                        maxLines = 1,
+                        modifier = Modifier.testTag("island_route_text_${route}")
+                    )
+                }
 
                 // Arrow
                 Text(

@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Layers
@@ -31,6 +32,7 @@ import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Radar
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -106,8 +108,51 @@ fun PinnedStopsScreen(
     val userLoc by viewModel.userLocation.collectAsState()
 
     var selectedTab by remember { mutableIntStateOf(0) } // 0 = Pinned Stops, 1 = Geofence Areas
+    var searchQuery by remember { mutableStateOf("") }
     var editingArea by remember { mutableStateOf<GeofenceAreaEntity?>(null) }
     var isCreatingArea by remember { mutableStateOf(false) }
+
+    val filteredPinnedStops = remember(pinnedStops, geofenceAreas, searchQuery) {
+        if (searchQuery.isBlank()) {
+            pinnedStops
+        } else {
+            val query = searchQuery.trim().lowercase()
+            pinnedStops.filter { item ->
+                val matchesRoute = item.route.lowercase().contains(query)
+                val matchesStopTc = item.stopNameTc.lowercase().contains(query)
+                val matchesStopEn = item.stopNameEn.lowercase().contains(query)
+                val matchesDestTc = item.destTc.lowercase().contains(query)
+                val matchesDestEn = item.destEn.lowercase().contains(query)
+                val matchesCo = item.co.lowercase().contains(query)
+                val linkedAreaName = geofenceAreas.find { it.id == item.areaId }?.name?.lowercase()
+                val matchesArea = linkedAreaName?.contains(query) == true
+
+                matchesRoute || matchesStopTc || matchesStopEn || matchesDestTc || matchesDestEn || matchesCo || matchesArea
+            }
+        }
+    }
+
+    val filteredGeofenceAreas = remember(geofenceAreas, pinnedStops, searchQuery) {
+        if (searchQuery.isBlank()) {
+            geofenceAreas
+        } else {
+            val query = searchQuery.trim().lowercase()
+            geofenceAreas.filter { area ->
+                val matchesAreaName = area.name.lowercase().contains(query)
+                val matchesBoundStops = pinnedStops.any { stop ->
+                    stop.areaId == area.id && (
+                        stop.route.lowercase().contains(query) ||
+                        stop.stopNameTc.lowercase().contains(query) ||
+                        stop.stopNameEn.lowercase().contains(query) ||
+                        stop.destTc.lowercase().contains(query) ||
+                        stop.co.lowercase().contains(query)
+                    )
+                }
+
+                matchesAreaName || matchesBoundStops
+            }
+        }
+    }
 
     Column(
         modifier = modifier
@@ -196,7 +241,8 @@ fun PinnedStopsScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(imageVector = Icons.Default.Bookmark, contentDescription = null, modifier = Modifier.size(15.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("已釘選巴士站 (${pinnedStops.size})", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        val badgeCount = if (searchQuery.isNotBlank()) "${filteredPinnedStops.size}/${pinnedStops.size}" else "${pinnedStops.size}"
+                        Text("已釘選巴士站 ($badgeCount)", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     }
                 },
                 selectedContentColor = BusLavenderPrimary,
@@ -210,7 +256,8 @@ fun PinnedStopsScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(imageVector = Icons.Default.Layers, contentDescription = null, modifier = Modifier.size(15.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("多邊形區域 (${geofenceAreas.size})", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        val badgeCount = if (searchQuery.isNotBlank()) "${filteredGeofenceAreas.size}/${geofenceAreas.size}" else "${geofenceAreas.size}"
+                        Text("多邊形區域 ($badgeCount)", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     }
                 },
                 selectedContentColor = BusLavenderPrimary,
@@ -218,7 +265,60 @@ fun PinnedStopsScreen(
             )
         }
 
-        Spacer(modifier = Modifier.height(14.dp))
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // Search Bar for Saved Page (Search by Route, Stop Name, or Area)
+        if (pinnedStops.isNotEmpty() || geofenceAreas.isNotEmpty()) {
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                placeholder = {
+                    Text(
+                        text = if (selectedTab == 0) "搜尋路線、站名或地理區域..." else "搜尋地理區域名稱或關聯路線...",
+                        color = BusTextSecondary,
+                        fontSize = 13.sp
+                    )
+                },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = "Search",
+                        tint = BusLavenderPrimary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                },
+                trailingIcon = {
+                    if (searchQuery.isNotEmpty()) {
+                        IconButton(
+                            onClick = { searchQuery = "" },
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Clear Search",
+                                tint = BusTextSecondary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                },
+                singleLine = true,
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = BusDarkSurface,
+                    unfocusedContainerColor = BusDarkSurface,
+                    focusedBorderColor = BusLavenderPrimary,
+                    unfocusedBorderColor = BusSubtleBorder,
+                    focusedTextColor = BusTextPrimary,
+                    unfocusedTextColor = BusTextPrimary
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("saved_page_search_textfield")
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+        }
 
         if (selectedTab == 0) {
             // Pinned Stops List
@@ -273,6 +373,51 @@ fun PinnedStopsScreen(
                         }
                     }
                 }
+            } else if (filteredPinnedStops.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Box(
+                            modifier = Modifier
+                                .size(72.dp)
+                                .background(BusDarkSurface, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.SearchOff,
+                                contentDescription = "No Results",
+                                tint = BusTextMuted,
+                                modifier = Modifier.size(36.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "找不到與「$searchQuery」相關的釘選巴士站",
+                            fontWeight = FontWeight.Bold,
+                            color = BusTextPrimary,
+                            fontSize = 15.sp,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "請嘗試搜尋其他路線號碼、站名或區域名稱",
+                            color = BusTextSecondary,
+                            fontSize = 12.5.sp,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(18.dp))
+                        OutlinedButton(
+                            onClick = { searchQuery = "" },
+                            shape = RoundedCornerShape(100.dp)
+                        ) {
+                            Text("清除搜尋關鍵字", color = BusLavenderPrimary, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
             } else {
                 LazyColumn(
                     modifier = Modifier
@@ -280,7 +425,7 @@ fun PinnedStopsScreen(
                         .testTag("pinned_stops_list"),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    items(pinnedStops, key = { it.id }) { item ->
+                    items(filteredPinnedStops, key = { it.id }) { item ->
                         val isCurrentlyActive = trackedBus?.stopId == item.stopId && trackedBus?.route == item.route
 
                         PinnedStopCardWithGeofence(
@@ -363,6 +508,51 @@ fun PinnedStopsScreen(
                         }
                     }
                 }
+            } else if (filteredGeofenceAreas.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Box(
+                            modifier = Modifier
+                                .size(72.dp)
+                                .background(BusDarkSurface, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.SearchOff,
+                                contentDescription = "No Results",
+                                tint = BusTextMuted,
+                                modifier = Modifier.size(36.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "找不到與「$searchQuery」相關的地理區域",
+                            fontWeight = FontWeight.Bold,
+                            color = BusTextPrimary,
+                            fontSize = 15.sp,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "請嘗試搜尋其他區域名稱或關聯的路線",
+                            color = BusTextSecondary,
+                            fontSize = 12.5.sp,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(18.dp))
+                        OutlinedButton(
+                            onClick = { searchQuery = "" },
+                            shape = RoundedCornerShape(100.dp)
+                        ) {
+                            Text("清除搜尋關鍵字", color = BusLavenderPrimary, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
             } else {
                 LazyColumn(
                     modifier = Modifier
@@ -386,7 +576,7 @@ fun PinnedStopsScreen(
                         }
                     }
 
-                    items(geofenceAreas, key = { it.id }) { area ->
+                    items(filteredGeofenceAreas, key = { it.id }) { area ->
                         val boundStopsCount = pinnedStops.count { it.triggerType == "AREA" && it.areaId == area.id }
                         val isInside = LocationTracker.isPointInPolygon(userLoc.latitude, userLoc.longitude, area.getPoints())
 
