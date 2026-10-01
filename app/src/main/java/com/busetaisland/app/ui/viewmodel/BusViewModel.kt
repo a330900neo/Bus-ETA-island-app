@@ -334,6 +334,14 @@ class BusViewModel(application: Application) : AndroidViewModel(application) {
         OverlayStateHolder.setNowcastCenterGps(enabled)
     }
 
+    fun setTimelineBarVisible(enabled: Boolean) {
+        OverlayStateHolder.setTimelineBarVisible(enabled)
+    }
+
+    fun setTimelineWindowMinutes(minutes: Int) {
+        OverlayStateHolder.setTimelineWindowMinutes(minutes)
+    }
+
     fun refreshNowcastData() {
         viewModelScope.launch {
             repository.fetchRainNowcast(force = true)

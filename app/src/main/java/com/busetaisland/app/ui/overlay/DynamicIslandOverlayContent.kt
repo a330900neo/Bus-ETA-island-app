@@ -22,6 +22,7 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -29,6 +30,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -71,6 +73,7 @@ import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
@@ -140,6 +143,11 @@ fun DynamicIslandOverlayContent(
     val flightRowHeight = if (hasFlightModule) 91.dp else 0.dp
 
     val hasWarnings = showWeatherInfo && weatherInfo?.warnings?.isNotEmpty() == true
+    // Timeline bar height (at bottom of all routes)
+    val showTimelineBar = config.showTimelineBar && !isCollapsed
+    val hasTimeline = showTimelineBar && busList.isNotEmpty()
+    val timelineRowHeight = if (hasTimeline) 50.dp else 0.dp
+
     // Pre-calculate exact target expanded height tightly fitting all content with zero trailing blank space
     val weatherRowHeight = if (showWeatherInfo) {
         var h = if (hasWarnings) 79.dp else 56.dp
@@ -151,9 +159,9 @@ fun DynamicIslandOverlayContent(
         0.dp
     }
     val targetExpandedHeight: Dp = if (busList.isEmpty()) {
-        (56.dp + flightRowHeight + weatherRowHeight)
+        (56.dp + flightRowHeight + timelineRowHeight + weatherRowHeight)
     } else {
-        (18 + (busList.size * 40)).dp + flightRowHeight + weatherRowHeight
+        (18 + (busList.size * 40)).dp + flightRowHeight + timelineRowHeight + weatherRowHeight
     }
 
     val animDuration = if (isCollapsed) config.collapseDurationMs else config.expandDurationMs
@@ -639,6 +647,31 @@ private fun ExpandedMultiBusIslandPillContent(
                     }
                 }
             }
+        }
+
+        // Big Horizontal Bus Timeline Bar placed at bottom of all routes
+        if (config.showTimelineBar && inRangeBuses.isNotEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(6.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                HorizontalDivider(
+                    modifier = Modifier.padding(horizontal = 4.dp),
+                    thickness = 0.5.dp,
+                    color = Color(0x28FFFFFF)
+                )
+            }
+
+            UpcomingBusTimelineBar(
+                buses = inRangeBuses,
+                etaUnit = etaUnit,
+                windowMinutes = config.timelineWindowMinutes,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 1.dp)
+            )
         }
 
         // Flight tracking module: placed between bus stops and weather info, visible without extra click
@@ -1168,7 +1201,7 @@ private fun BusStopItemRow(
                             text = route,
                             color = Color.White,
                             fontWeight = FontWeight.Black,
-                            fontSize = 11.5.sp,
+                            fontSize = 14.5.sp,
                             letterSpacing = 0.2.sp,
                             maxLines = 1,
                             modifier = Modifier.testTag("island_route_text_${route}")
@@ -1180,7 +1213,7 @@ private fun BusStopItemRow(
                         text = route,
                         color = routeTextColor,
                         fontWeight = FontWeight.Black,
-                        fontSize = 12.sp,
+                        fontSize = 15.sp,
                         letterSpacing = 0.2.sp,
                         maxLines = 1,
                         modifier = Modifier.testTag("island_route_text_${route}")
@@ -1191,7 +1224,7 @@ private fun BusStopItemRow(
                 Text(
                     text = "➔",
                     color = Color(0xFF9A92A6),
-                    fontSize = 8.5.sp,
+                    fontSize = 9.5.sp,
                     fontWeight = FontWeight.Bold
                 )
 
@@ -1210,7 +1243,7 @@ private fun BusStopItemRow(
                 Text(
                     text = destChinese,
                     color = destTextColor,
-                    fontSize = 10.5.sp,
+                    fontSize = 11.5.sp,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -1231,7 +1264,7 @@ private fun BusStopItemRow(
                     color = Color(0x22FFFFFF),
                     shape = RoundedCornerShape(8.dp)
                 )
-                .padding(horizontal = 7.dp, vertical = 3.dp),
+                .padding(horizontal = 7.dp, vertical = 1.5.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.End
         ) {
@@ -1239,7 +1272,7 @@ private fun BusStopItemRow(
             Text(
                 text = eta1Text,
                 color = eta1TextColor,
-                fontSize = 12.5.sp,
+                fontSize = 15.5.sp,
                 fontWeight = FontWeight.Black,
                 fontFamily = FontFamily.Monospace,
                 maxLines = 1,
@@ -1252,7 +1285,7 @@ private fun BusStopItemRow(
                 Text(
                     text = " • ",
                     color = Color(0xFF7A757F),
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.Bold
                 )
 
@@ -1260,13 +1293,201 @@ private fun BusStopItemRow(
                 Text(
                     text = eta2Text,
                     color = eta2TextColor,
-                    fontSize = 11.5.sp,
+                    fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
                     fontFamily = FontFamily.Monospace,
                     maxLines = 1,
                     modifier = Modifier.testTag("island_eta2_${route}")
                 )
             }
+        }
+    }
+}
+
+private data class BusTimelinePoint(
+    val route: String,
+    val company: String,
+    val etaSeq: Int,
+    val minutesLeft: Int,
+    val isGrey: Boolean,
+    val color: Color,
+    val formattedTime: String
+)
+
+@Composable
+private fun UpcomingBusTimelineBar(
+    buses: List<TrackedBusInfo>,
+    etaUnit: EtaDisplayUnit,
+    windowMinutes: Int,
+    modifier: Modifier = Modifier
+) {
+    val maxWindow = windowMinutes.coerceIn(10, 120)
+
+    val points = remember(buses, etaUnit, maxWindow) {
+        val list = mutableListOf<BusTimelinePoint>()
+        buses.forEach { bus ->
+            val route = bus.route
+            val co = bus.co
+            val isMtr = co.equals("MTR", ignoreCase = true) || MtrRegistry.findLine(route) != null
+            val isGmb = co == "GMB"
+            val isCtb = co == "CTB"
+            val isNwfb = co == "NWFB"
+            val mtrLine = if (isMtr) MtrRegistry.findLine(route) else null
+            val badgeColor = when {
+                isMtr -> mtrLine?.color ?: MtrRegistry.getRouteColor(co, route)
+                isGmb -> Color(0xFF00E676)
+                isCtb -> Color(0xFFFFD600)
+                isNwfb -> Color(0xFFFF9100)
+                else -> Color(0xFFD0BCFF)
+            }
+
+            bus.eta1?.let { e1 ->
+                if (e1.minutesLeft in 0..maxWindow) {
+                    list.add(
+                        BusTimelinePoint(
+                            route = route,
+                            company = co,
+                            etaSeq = 1,
+                            minutesLeft = e1.minutesLeft,
+                            isGrey = bus.isFirstEtaScheduled,
+                            color = badgeColor,
+                            formattedTime = bus.formattedEta1(etaUnit)
+                        )
+                    )
+                }
+            }
+
+            bus.eta2?.let { e2 ->
+                if (e2.minutesLeft in 0..maxWindow) {
+                    list.add(
+                        BusTimelinePoint(
+                            route = route,
+                            company = co,
+                            etaSeq = 2,
+                            minutesLeft = e2.minutesLeft,
+                            isGrey = bus.isSecondEtaScheduled,
+                            color = badgeColor,
+                            formattedTime = bus.formattedEta2(etaUnit)
+                        )
+                    )
+                }
+            }
+        }
+        list.sortedBy { it.minutesLeft }
+    }
+
+    val tick1 = maxWindow / 3
+    val tick2 = (maxWindow * 2) / 3
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(Color(0xFF000000))
+            .padding(horizontal = 4.dp, vertical = 2.dp)
+            .testTag("island_upcoming_bus_timeline")
+    ) {
+        // Horizontal Timeline Track Area with Alternating Top/Bottom Minute Numbers
+        BoxWithConstraints(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(34.dp),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            val totalWidthDp = this.maxWidth
+            val usableWidthDp = (totalWidthDp - 16.dp).coerceAtLeast(1.dp)
+
+            // Track Bar Line (Centered in the BoxWithConstraints)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(3.5.dp)
+                    .align(Alignment.Center)
+                    .background(
+                        brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
+                            colors = listOf(
+                                Color(0xFF00E676),
+                                Color(0xFF00E5FF),
+                                Color(0xFF2979FF),
+                                Color(0x44FFFFFF)
+                            )
+                        ),
+                        shape = RoundedCornerShape(2.dp)
+                    )
+            )
+
+            // Tick Marks along the line
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.Center),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Box(modifier = Modifier.size(5.dp).background(Color(0xFF00E676), CircleShape))
+                Box(modifier = Modifier.size(width = 1.dp, height = 5.dp).background(Color(0x66FFFFFF)))
+                Box(modifier = Modifier.size(width = 1.dp, height = 5.dp).background(Color(0x66FFFFFF)))
+                Box(modifier = Modifier.size(width = 1.dp, height = 5.dp).background(Color(0x66FFFFFF)))
+            }
+
+            // Render Bus Points locked EXACTLY on the track line with alternating top/bottom minute labels
+            points.take(12).forEachIndexed { idx, pt ->
+                val ratio = (pt.minutesLeft.coerceIn(0, maxWindow).toFloat() / maxWindow.toFloat()).coerceIn(0f, 1f)
+                val dotXOffset = (ratio * usableWidthDp.value).dp
+                val isArrivingSoon = pt.minutesLeft <= 3
+                val pointColor = if (pt.isGrey) Color(0xFF8E8E93) else if (isArrivingSoon) Color(0xFF00E676) else pt.color
+                val showOnTop = idx % 2 == 0
+                val minuteText = if (pt.minutesLeft <= 0) "即" else pt.minutesLeft.toString()
+
+                // Dot is locked dead-center onto the track line
+                Box(
+                    modifier = Modifier
+                        .offset(x = dotXOffset)
+                        .align(Alignment.CenterStart),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (isArrivingSoon) {
+                        Box(
+                            modifier = Modifier
+                                .size(14.dp)
+                                .background(Color(0x4400E676), CircleShape)
+                        )
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .size(8.5.dp)
+                            .background(pointColor, CircleShape)
+                            .border(
+                                width = 0.8.dp,
+                                color = Color.White.copy(alpha = 0.85f),
+                                shape = CircleShape
+                            )
+                    )
+
+                    // Minute text floating above (y = -12.5dp) or below (y = 12.5dp) the dot's center
+                    val yTextOffset = if (showOnTop) (-12.5).dp else 12.5.dp
+                    Text(
+                        text = minuteText,
+                        color = if (isArrivingSoon) Color(0xFF00E676) else Color.White,
+                        fontSize = 8.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace,
+                        modifier = Modifier.offset(y = yTextOffset)
+                    )
+                }
+            }
+        }
+
+        // Scale Labels below track
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 1.dp),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text("現在", fontSize = 8.sp, color = Color(0xFF00E676), fontWeight = FontWeight.Bold)
+            Text("${tick1}m", fontSize = 8.sp, color = Color(0xFF8E8E93))
+            Text("${tick2}m", fontSize = 8.sp, color = Color(0xFF8E8E93))
+            Text("${maxWindow}m", fontSize = 8.sp, color = Color(0xFF8E8E93))
         }
     }
 }

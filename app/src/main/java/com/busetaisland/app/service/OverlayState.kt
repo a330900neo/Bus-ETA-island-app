@@ -22,6 +22,8 @@ data class OverlayDisplayConfig(
     val isCollapsed: Boolean = false, // false = Dynamic Island Pill, true = Mini Floating Circle
     val showWeatherInfo: Boolean = false, // Weather info line visibility (click island again to show, swipe up to hide)
     val showNowcastMap: Boolean = false, // Rain nowcast radar map visibility below warnings
+    val showTimelineBar: Boolean = false, // Big horizontal upcoming bus timeline bar below routes (default OFF)
+    val timelineWindowMinutes: Int = 30, // User-tuneable timeline scale limit (e.g. 15, 30, 45, 60 min)
     val isFlightTrackingEnabled: Boolean = false, // Optional flight tracking module
     val trackedFlightQuery: String = "B-LRA", // Callsign / Registration e.g. "B-LRA" or "B-LNJ"
     val flightdataEmail: String = "", // pyflightdata / FlightRadar24 login email
@@ -70,6 +72,8 @@ object OverlayStateHolder {
     private const val KEY_NOWCAST_CYCLE_SEC = "nowcast_cycle_sec"
     private const val KEY_NOWCAST_COOLDOWN_MIN = "nowcast_cooldown_min"
     private const val KEY_NOWCAST_CENTER_GPS = "nowcast_center_gps"
+    private const val KEY_SHOW_TIMELINE_BAR = "show_timeline_bar"
+    private const val KEY_TIMELINE_WINDOW_MIN = "timeline_window_min"
     private const val KEY_FLIGHT_TRACKING_ENABLED = "flight_tracking_enabled"
     private const val KEY_TRACKED_FLIGHT_QUERY = "tracked_flight_query"
     private const val KEY_FLIGHTDATA_EMAIL = "flightdata_email"
@@ -122,6 +126,8 @@ object OverlayStateHolder {
         val nowcastCycle = prefs.getFloat(KEY_NOWCAST_CYCLE_SEC, 3.0f)
         val nowcastCooldown = prefs.getInt(KEY_NOWCAST_COOLDOWN_MIN, 12)
         val nowcastCenterGps = prefs.getBoolean(KEY_NOWCAST_CENTER_GPS, true)
+        val showTimelineBar = prefs.getBoolean(KEY_SHOW_TIMELINE_BAR, false)
+        val timelineWindow = prefs.getInt(KEY_TIMELINE_WINDOW_MIN, 30)
         val flightTrackingEnabled = prefs.getBoolean(KEY_FLIGHT_TRACKING_ENABLED, false)
         val trackedFlightQuery = prefs.getString(KEY_TRACKED_FLIGHT_QUERY, "B-LRA") ?: "B-LRA"
         val flightEmail = prefs.getString(KEY_FLIGHTDATA_EMAIL, "") ?: ""
@@ -146,6 +152,8 @@ object OverlayStateHolder {
             nowcastCycleDurationSec = nowcastCycle,
             nowcastCooldownMinutes = nowcastCooldown,
             nowcastCenterGps = nowcastCenterGps,
+            showTimelineBar = showTimelineBar,
+            timelineWindowMinutes = timelineWindow,
             isFlightTrackingEnabled = flightTrackingEnabled,
             trackedFlightQuery = trackedFlightQuery,
             flightdataEmail = flightEmail,
@@ -176,6 +184,8 @@ object OverlayStateHolder {
             last.nowcastCycleDurationSec == c.nowcastCycleDurationSec &&
             last.nowcastCooldownMinutes == c.nowcastCooldownMinutes &&
             last.nowcastCenterGps == c.nowcastCenterGps &&
+            last.showTimelineBar == c.showTimelineBar &&
+            last.timelineWindowMinutes == c.timelineWindowMinutes &&
             last.isFlightTrackingEnabled == c.isFlightTrackingEnabled &&
             last.trackedFlightQuery == c.trackedFlightQuery &&
             last.flightdataEmail == c.flightdataEmail &&
@@ -202,6 +212,8 @@ object OverlayStateHolder {
             putFloat(KEY_NOWCAST_CYCLE_SEC, c.nowcastCycleDurationSec)
             putInt(KEY_NOWCAST_COOLDOWN_MIN, c.nowcastCooldownMinutes)
             putBoolean(KEY_NOWCAST_CENTER_GPS, c.nowcastCenterGps)
+            putBoolean(KEY_SHOW_TIMELINE_BAR, c.showTimelineBar)
+            putInt(KEY_TIMELINE_WINDOW_MIN, c.timelineWindowMinutes)
             putBoolean(KEY_FLIGHT_TRACKING_ENABLED, c.isFlightTrackingEnabled)
             putString(KEY_TRACKED_FLIGHT_QUERY, c.trackedFlightQuery)
             putString(KEY_FLIGHTDATA_EMAIL, c.flightdataEmail)
@@ -256,6 +268,14 @@ object OverlayStateHolder {
 
     fun setNowcastCenterGps(enabled: Boolean) {
         updateConfig { it.copy(nowcastCenterGps = enabled) }
+    }
+
+    fun setTimelineBarVisible(visible: Boolean) {
+        updateConfig { it.copy(showTimelineBar = visible) }
+    }
+
+    fun setTimelineWindowMinutes(minutes: Int) {
+        updateConfig { it.copy(timelineWindowMinutes = minutes.coerceIn(10, 120)) }
     }
 
     fun setFlightTrackingEnabled(enabled: Boolean) {

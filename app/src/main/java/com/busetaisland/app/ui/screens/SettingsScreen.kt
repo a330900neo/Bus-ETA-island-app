@@ -22,6 +22,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.Accessibility
 import androidx.compose.material.icons.filled.Animation
 import androidx.compose.material.icons.filled.CenterFocusStrong
@@ -57,6 +58,8 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
@@ -505,6 +508,146 @@ fun SettingsScreen(
                                 color = BusTextSecondary,
                                 fontSize = 11.sp
                             )
+                        }
+                    }
+                }
+            }
+        }
+
+        // Upcoming Bus Horizontal Timeline Card (Default OFF)
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, Color(0x44D0BCFF), RoundedCornerShape(22.dp))
+                    .testTag("settings_bus_timeline_card"),
+                colors = CardDefaults.cardColors(containerColor = BusDarkSurface),
+                shape = RoundedCornerShape(22.dp)
+            ) {
+                Column(modifier = Modifier.padding(18.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .background(Color(0x22D0BCFF), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.AccessTime,
+                                    contentDescription = "Bus Timeline",
+                                    tint = BusLavenderPrimary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    text = "動態島橫向到站時間軸 (Timeline)",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = BusTextPrimary,
+                                    fontSize = 15.sp
+                                )
+                                Text(
+                                    text = "於動態島所有路線下方顯示 0 - 30 分鐘橫向視覺化時間軸，一眼掌握各班次間隔與進站順序",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = BusTextSecondary,
+                                    fontSize = 11.5.sp
+                                )
+                            }
+                        }
+
+                        Switch(
+                            checked = overlayConfig.showTimelineBar,
+                            onCheckedChange = { viewModel.setTimelineBarVisible(it) },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = BusLavenderPrimary,
+                                checkedTrackColor = Color(0x33D0BCFF),
+                                uncheckedThumbColor = BusTextMuted,
+                                uncheckedTrackColor = BusDarkSurfaceVariant
+                            ),
+                            modifier = Modifier.testTag("switch_bus_timeline")
+                        )
+                    }
+
+                    if (overlayConfig.showTimelineBar) {
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        Text(
+                            text = "時間軸時間視窗上限 (用戶自訂):",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = BusTextPrimary
+                        )
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            listOf(15, 30, 45, 60).forEach { window ->
+                                val isSelected = overlayConfig.timelineWindowMinutes == window
+                                FilterChip(
+                                    selected = isSelected,
+                                    onClick = { viewModel.setTimelineWindowMinutes(window) },
+                                    label = {
+                                        Text(
+                                            text = "${window}分鐘",
+                                            fontSize = 11.5.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                        )
+                                    },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = BusLavenderPrimary,
+                                        selectedLabelColor = BusLavenderOnPrimary,
+                                        containerColor = BusDarkSurfaceVariant,
+                                        labelColor = BusTextSecondary
+                                    ),
+                                    modifier = Modifier.weight(1f).testTag("chip_timeline_window_${window}")
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(BusDarkSurfaceVariant, RoundedCornerShape(14.dp))
+                                .padding(12.dp)
+                        ) {
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text(
+                                    text = "💡 點狀時間軸 (Point Timeline) 特色:",
+                                    color = BusTextPrimary,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "• 極簡圓點標記：將各班次呈現為軌道上的極簡圓點 (不佔用字體空間，零崩潰)。",
+                                    color = BusTextSecondary,
+                                    fontSize = 11.sp
+                                )
+                                Text(
+                                    text = "• 3分鐘內進站高亮：即將到達之班次自動呈現綠色發光護目光環。",
+                                    color = BusTextSecondary,
+                                    fontSize = 11.sp
+                                )
+                                Text(
+                                    text = "• 橫向時間視窗：自訂 15 至 60 分鐘座標軸上限，秒懂班次進站間隔。",
+                                    color = BusTextSecondary,
+                                    fontSize = 11.sp
+                                )
+                            }
                         }
                     }
                 }
