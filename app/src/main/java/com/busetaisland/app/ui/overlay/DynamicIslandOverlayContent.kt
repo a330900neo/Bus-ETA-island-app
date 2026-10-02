@@ -93,8 +93,20 @@ import com.busetaisland.app.data.model.WeatherInfo
 import com.busetaisland.app.service.OverlayStateHolder
 import com.busetaisland.app.ui.components.FlightTrackingProgressRow
 import com.busetaisland.app.ui.components.RainNowcastMapView
+import com.busetaisland.app.ui.theme.BusDarkSurface
+import com.busetaisland.app.ui.theme.BusDarkSurfaceVariant
+import com.busetaisland.app.ui.theme.BusEmeraldGreen
+import com.busetaisland.app.ui.theme.BusIslandBlack
+import com.busetaisland.app.ui.theme.BusLavenderContainer
+import com.busetaisland.app.ui.theme.BusLavenderPrimary
+import com.busetaisland.app.ui.theme.BusRoseAlert
+import com.busetaisland.app.ui.theme.BusSubtleBorder
+import com.busetaisland.app.ui.theme.BusTextMuted
+import com.busetaisland.app.ui.theme.BusTextPrimary
+import com.busetaisland.app.ui.theme.BusTextSecondary
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 @Composable
@@ -306,16 +318,21 @@ fun DynamicIslandOverlayContent(
     } else {
         Modifier.border(
             width = if (isCollapsed) 1.2.dp else 0.8.dp,
-            color = if (!hasInRangeBus && isCollapsed) Color(0x558E8E93) else Color(0x38FFFFFF),
+            color = if (!hasInRangeBus && isCollapsed) BusTextMuted else BusSubtleBorder,
             shape = morphShape
         )
     }
 
-    Box(
+    val isHideHoldActive by OverlayStateHolder.isHideHoldActive.collectAsState()
+    val hideHoldProgress by OverlayStateHolder.hideHoldProgress.collectAsState()
+    val context = LocalContext.current
+
+    Column(
         modifier = modifier
             .wrapContentSize()
             .testTag("dynamic_island_overlay_root"),
-        contentAlignment = Alignment.Center
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Top
     ) {
         Surface(
             modifier = Modifier
@@ -369,11 +386,14 @@ fun DynamicIslandOverlayContent(
                                     onExpandToggle()
                                 }
                             }
+                        },
+                        onTopHoldComplete = {
+                            OverlayStateHolder.pauseAndHideOverlay(context)
                         }
                     )
                 }
                 .testTag(if (isCollapsed) "island_collapsed_circle" else "island_expanded_pill"),
-            color = Color(0xFF000000),
+            color = BusIslandBlack,
             shape = morphShape
         ) {
             Box(
@@ -438,6 +458,66 @@ fun DynamicIslandOverlayContent(
                 }
             }
         }
+
+        if (isCollapsed && isHideHoldActive) {
+            Spacer(modifier = Modifier.height(6.dp))
+            HideProgressPopupCard(progress = hideHoldProgress)
+        }
+    }
+}
+
+@Composable
+private fun HideProgressPopupCard(
+    progress: Float,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier
+            .width(160.dp)
+            .wrapContentHeight(),
+        shape = RoundedCornerShape(12.dp),
+        color = BusDarkSurface,
+        border = androidx.compose.foundation.BorderStroke(1.dp, BusRoseAlert.copy(alpha = 0.5f))
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = "🙈 ",
+                    fontSize = 11.sp
+                )
+                Text(
+                    text = "按住 1.5 秒隱藏與暫停",
+                    color = BusRoseAlert,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(BusSubtleBorder)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(progress.coerceIn(0f, 1f))
+                        .fillMaxHeight()
+                        .background(
+                            brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
+                                colors = listOf(Color(0xFFFF5252), Color(0xFFFF1744))
+                            )
+                        )
+                )
+            }
+        }
     }
 }
 
@@ -448,6 +528,7 @@ fun DynamicIslandOverlayContent(
  * - Tap when expanded toggles the weather info line
  * - Drag moves the floating circle
  * - Swipe-Up collapses the weather line or the dynamic island
+ * - Hold near top of screen for 1.5s hides circle and pauses updates
  */
 private suspend fun PointerInputScope.handleIslandTouch(
     isCollapsed: () -> Boolean,
@@ -456,7 +537,8 @@ private suspend fun PointerInputScope.handleIslandTouch(
     onLongPress: () -> Unit,
     onDrag: (dx: Float, dy: Float) -> Unit,
     onDragEnd: () -> Unit,
-    onSwipeUp: () -> Unit
+    onSwipeUp: () -> Unit,
+    onTopHoldComplete: () -> Unit = {}
 ) {
     val touchSlop = viewConfiguration.touchSlop
     val longPressTimeout = 400L
@@ -468,6 +550,7 @@ private suspend fun PointerInputScope.handleIslandTouch(
             var isLongPressTriggered = false
             var totalDx = 0f
             var totalDy = 0f
+            var holdToHideJob: kotlinx.coroutines.Job? = null
 
             val longPressJob = launch {
                 delay(longPressTimeout)
@@ -500,6 +583,32 @@ private suspend fun PointerInputScope.handleIslandTouch(
                             change.consume()
                             if (isCollapsed()) {
                                 onDrag(dx, dy)
+                                if (OverlayStateHolder.isNearTop.value) {
+                                    if (holdToHideJob == null || holdToHideJob?.isActive != true) {
+                                        holdToHideJob = launch {
+                                            val startTime = System.currentTimeMillis()
+                                            val durationMs = 1500L
+                                            while (isActive) {
+                                                val elapsed = System.currentTimeMillis() - startTime
+                                                val progress = (elapsed.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
+                                                OverlayStateHolder.setHideHoldState(active = true, progress = progress)
+                                                if (progress >= 1f) {
+                                                    try {
+                                                        onTopHoldComplete()
+                                                    } catch (e: Exception) {
+                                                        // Ignore
+                                                    }
+                                                    break
+                                                }
+                                                delay(30L)
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    holdToHideJob?.cancel()
+                                    holdToHideJob = null
+                                    OverlayStateHolder.setHideHoldState(active = false, progress = 0f)
+                                }
                             } else {
                                 // Swipe up when expanded
                                 if (totalDy < -touchSlop && Math.abs(totalDy) > Math.abs(totalDx)) {
@@ -511,6 +620,10 @@ private suspend fun PointerInputScope.handleIslandTouch(
                     } else {
                         // Pointer lifted (Up event)
                         longPressJob.cancel()
+                        holdToHideJob?.cancel()
+                        holdToHideJob = null
+                        OverlayStateHolder.setHideHoldState(active = false, progress = 0f)
+
                         if (isDragging) {
                             if (isCollapsed()) {
                                 onDragEnd()
@@ -524,6 +637,9 @@ private suspend fun PointerInputScope.handleIslandTouch(
                 }
             } finally {
                 longPressJob.cancel()
+                holdToHideJob?.cancel()
+                holdToHideJob = null
+                OverlayStateHolder.setHideHoldState(active = false, progress = 0f)
             }
         }
     }
@@ -546,8 +662,8 @@ private fun CollapsedCircleInnerContent(
             contentDescription = "Bus Overlay",
             tint = when {
                 isRefreshing -> Color(0xFF2979FF)
-                hasInRangeBus -> Color(0xFFD0BCFF)
-                else -> Color(0xFF8E8E93)
+                hasInRangeBus -> BusLavenderPrimary
+                else -> BusTextMuted
             },
             modifier = Modifier.size(iconSize)
         )
@@ -589,7 +705,7 @@ private fun ExpandedMultiBusIslandPillContent(
             Box(
                 modifier = Modifier
                     .size(width = 28.dp, height = 3.5.dp)
-                    .background(Color(0x38FFFFFF), RoundedCornerShape(2.dp))
+                    .background(BusSubtleBorder, RoundedCornerShape(2.dp))
             )
         }
 
@@ -604,13 +720,13 @@ private fun ExpandedMultiBusIslandPillContent(
                 Icon(
                     imageVector = Icons.Default.LocationOff,
                     contentDescription = "No bus in range",
-                    tint = if (hasOutOfRangeBus) Color(0xFFFFB4AB) else Color(0xFF8E8E93),
+                    tint = if (hasOutOfRangeBus) BusRoseAlert else BusTextMuted,
                     modifier = Modifier.size(14.dp)
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
                     text = if (hasOutOfRangeBus) "已超出地理範圍 (待機中)" else "暫無巴士即時班次",
-                    color = if (hasOutOfRangeBus) Color(0xFFFFB4AB) else Color(0xFF8E8E93),
+                    color = if (hasOutOfRangeBus) BusRoseAlert else BusTextMuted,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
                     fontFamily = FontFamily.Monospace
@@ -642,7 +758,7 @@ private fun ExpandedMultiBusIslandPillContent(
                         HorizontalDivider(
                             modifier = Modifier.padding(horizontal = 4.dp),
                             thickness = 0.5.dp,
-                            color = Color(0x28FFFFFF)
+                            color = BusSubtleBorder
                         )
                     }
                 }
@@ -660,7 +776,7 @@ private fun ExpandedMultiBusIslandPillContent(
                 HorizontalDivider(
                     modifier = Modifier.padding(horizontal = 4.dp),
                     thickness = 0.5.dp,
-                    color = Color(0x28FFFFFF)
+                    color = BusSubtleBorder
                 )
             }
 
@@ -685,7 +801,7 @@ private fun ExpandedMultiBusIslandPillContent(
                 HorizontalDivider(
                     modifier = Modifier.padding(horizontal = 4.dp),
                     thickness = 0.5.dp,
-                    color = Color(0x28FFFFFF)
+                    color = BusSubtleBorder
                 )
             }
 
@@ -706,7 +822,7 @@ private fun ExpandedMultiBusIslandPillContent(
                 HorizontalDivider(
                     modifier = Modifier.padding(horizontal = 4.dp),
                     thickness = 0.5.dp,
-                    color = Color(0x28FFFFFF)
+                    color = BusSubtleBorder
                 )
             }
 
@@ -740,7 +856,7 @@ private fun ExpandedMultiBusIslandPillContent(
                     .height(26.dp)
                     .padding(top = 2.dp)
                     .clip(RoundedCornerShape(8.dp))
-                    .background(if (config.showNowcastMap) Color(0x3300E5FF) else Color(0x1AFFFFFF))
+                    .background(if (config.showNowcastMap) BusLavenderContainer else BusSubtleBorder)
                     .clickable {
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         val nextState = !config.showNowcastMap
@@ -768,7 +884,7 @@ private fun ExpandedMultiBusIslandPillContent(
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
                         text = "降雨臨近預報地圖",
-                        color = if (config.showNowcastMap) Color(0xFF00E5FF) else Color(0xFFE2E8F0),
+                        color = if (config.showNowcastMap) Color(0xFF00E5FF) else BusTextPrimary,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold
                     )
@@ -779,14 +895,14 @@ private fun ExpandedMultiBusIslandPillContent(
                     if (frameCount > 0) {
                         Text(
                             text = "${frameCount}幀",
-                            color = Color(0xFF94A3B8),
+                            color = BusTextMuted,
                             fontSize = 10.sp,
                             modifier = Modifier.padding(end = 4.dp)
                         )
                     }
                     Text(
                         text = if (config.showNowcastMap) "▲ 收起" else "▼ 展開",
-                        color = if (config.showNowcastMap) Color(0xFF00E5FF) else Color(0xFF94A3B8),
+                        color = if (config.showNowcastMap) Color(0xFF00E5FF) else BusTextMuted,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Medium
                     )
@@ -834,13 +950,13 @@ private fun WeatherInfoRow(
         ) {
             Text(
                 text = "$district ",
-                color = Color(0xFFD0BCFF),
+                color = BusLavenderPrimary,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold
             )
             Text(
                 text = "${curTemp}°C",
-                color = Color(0xFFFFFFFF),
+                color = BusTextPrimary,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.ExtraBold,
                 fontFamily = FontFamily.Monospace
@@ -853,20 +969,20 @@ private fun WeatherInfoRow(
         ) {
             Text(
                 text = "今日 ",
-                color = Color(0xFF9A92A6),
+                color = BusTextMuted,
                 fontSize = 10.5.sp,
                 fontWeight = FontWeight.Normal
             )
             Text(
                 text = "${maxTemp}°",
-                color = Color(0xFFFF8A80),
+                color = BusRoseAlert,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
                 fontFamily = FontFamily.Monospace
             )
             Text(
                 text = "/",
-                color = Color(0xFF7A757F),
+                color = BusTextMuted,
                 fontSize = 10.sp
             )
             Text(
@@ -884,7 +1000,7 @@ private fun WeatherInfoRow(
         ) {
             Text(
                 text = "濕度 ",
-                color = Color(0xFF9A92A6),
+                color = BusTextMuted,
                 fontSize = 10.5.sp,
                 fontWeight = FontWeight.Normal
             )
@@ -903,7 +1019,7 @@ private fun WeatherInfoRow(
         ) {
             Text(
                 text = "降雨 ",
-                color = Color(0xFF9A92A6),
+                color = BusTextMuted,
                 fontSize = 10.5.sp,
                 fontWeight = FontWeight.Normal
             )
@@ -1134,27 +1250,23 @@ private fun BusStopItemRow(
         isGmb -> Color(0xFF00E676)
         isCtb -> Color(0xFFFFD600)
         isNwfb -> Color(0xFFFF9100)
-        else -> Color(0xFFD0BCFF)
+        else -> BusLavenderPrimary
     }
     val boxBorderColor = when {
         isMtr -> mtrLineColor.copy(alpha = 0.5f)
         isGmb -> Color(0x5500E676)
         isCtb -> Color(0x55FFD600)
         isNwfb -> Color(0x55FF9100)
-        else -> Color(0x38D0BCFF)
+        else -> BusSubtleBorder
     }
-    val boxBgColor = when {
-        isMtr -> Color(0xFF191820)
-        else -> Color(0xFF191820)
-    }
-    val destTextColor = Color(0xFFE6E1E5)
+    val boxBgColor = BusDarkSurfaceVariant
+    val destTextColor = BusTextPrimary
     
     val isEta1Grey = bus?.eta1?.isGrey(bus.co) == true
     val isEta2Grey = bus?.eta2?.isGrey(bus.co) == true
 
-    // Normal is white (#FFFFFF), Grey (#8E8E93) when "原定班次" (KMB) or "未開出" (GMB)
-    val eta1TextColor = if (isEta1Grey) Color(0xFF8E8E93) else Color(0xFFFFFFFF)
-    val eta2TextColor = if (isEta2Grey) Color(0xFF8E8E93) else Color(0xFFFFFFFF)
+    val eta1TextColor = if (isEta1Grey) BusTextMuted else BusTextPrimary
+    val eta2TextColor = if (isEta2Grey) BusTextMuted else BusTextPrimary
 
     val eta1Text = bus?.formattedEta1(etaUnit) ?: "--"
     val eta2Text = bus?.formattedEta2(etaUnit) ?: "--"
@@ -1258,10 +1370,10 @@ private fun BusStopItemRow(
         Row(
             modifier = Modifier
                 .clip(RoundedCornerShape(8.dp))
-                .background(Color(0xFF141318))
+                .background(BusDarkSurfaceVariant)
                 .border(
                     width = 0.6.dp,
-                    color = Color(0x22FFFFFF),
+                    color = BusSubtleBorder,
                     shape = RoundedCornerShape(8.dp)
                 )
                 .padding(horizontal = 7.dp, vertical = 1.5.dp),
@@ -1284,7 +1396,7 @@ private fun BusStopItemRow(
                 // Dot separator
                 Text(
                     text = " • ",
-                    color = Color(0xFF7A757F),
+                    color = BusTextMuted,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -1322,8 +1434,9 @@ private fun UpcomingBusTimelineBar(
     modifier: Modifier = Modifier
 ) {
     val maxWindow = windowMinutes.coerceIn(10, 120)
+    val defaultBadgeColor = BusLavenderPrimary
 
-    val points = remember(buses, etaUnit, maxWindow) {
+    val points = remember(buses, etaUnit, maxWindow, defaultBadgeColor) {
         val list = mutableListOf<BusTimelinePoint>()
         buses.forEach { bus ->
             val route = bus.route
@@ -1338,7 +1451,7 @@ private fun UpcomingBusTimelineBar(
                 isGmb -> Color(0xFF00E676)
                 isCtb -> Color(0xFFFFD600)
                 isNwfb -> Color(0xFFFF9100)
-                else -> Color(0xFFD0BCFF)
+                else -> defaultBadgeColor
             }
 
             bus.eta1?.let { e1 ->
@@ -1382,7 +1495,7 @@ private fun UpcomingBusTimelineBar(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(Color(0xFF000000))
+            .background(BusIslandBlack)
             .padding(horizontal = 4.dp, vertical = 2.dp)
             .testTag("island_upcoming_bus_timeline")
     ) {

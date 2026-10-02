@@ -27,6 +27,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import com.busetaisland.app.ui.theme.BusDarkSurfaceVariant
+import com.busetaisland.app.ui.theme.BusSubtleBorder
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -84,8 +86,8 @@ fun FlightTrackingProgressRow(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(Color(0xFF131C2E))
-            .border(0.75.dp, Color(0x3338BDF8), RoundedCornerShape(12.dp))
+            .background(BusDarkSurfaceVariant)
+            .border(0.75.dp, BusSubtleBorder, RoundedCornerShape(12.dp))
             .padding(horizontal = 10.dp, vertical = 7.dp)
             .testTag("flight_tracking_module")
     ) {

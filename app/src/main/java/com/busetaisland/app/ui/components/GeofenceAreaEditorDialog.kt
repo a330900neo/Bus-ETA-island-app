@@ -671,6 +671,8 @@ fun GeofenceAreaEditorDialog(
                                 }
                         }
 
+                        val alertColor = BusRoseAlert
+
                         Canvas(
                             modifier = Modifier
                                 .fillMaxSize()
@@ -721,7 +723,7 @@ fun GeofenceAreaEditorDialog(
                                             center = off
                                         )
                                         drawCircle(
-                                            color = BusRoseAlert,
+                                            color = alertColor,
                                             radius = 12.dp.toPx(),
                                             center = off
                                         )

@@ -79,6 +79,7 @@ import com.busetaisland.app.ui.theme.BusDarkSurface
 import com.busetaisland.app.ui.theme.BusDarkSurfaceElevated
 import com.busetaisland.app.ui.theme.BusDarkSurfaceVariant
 import com.busetaisland.app.ui.theme.BusEmeraldGreen
+import com.busetaisland.app.ui.theme.BusIslandBlack
 import com.busetaisland.app.ui.theme.BusLavenderContainer
 import com.busetaisland.app.ui.theme.BusLavenderOnContainer
 import com.busetaisland.app.ui.theme.BusLavenderOnPrimary
@@ -322,12 +323,12 @@ private fun IslandMasterCard(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Live Visual Preview Container on Pitch Black Canvas
+            // Live Visual Preview Container on Island Canvas
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color(0xFF000000), RoundedCornerShape(20.dp))
-                    .border(1.dp, Color(0x1FFFFFFF), RoundedCornerShape(20.dp))
+                    .background(BusIslandBlack, RoundedCornerShape(20.dp))
+                    .border(1.dp, BusSubtleBorder, RoundedCornerShape(20.dp))
                     .padding(vertical = 14.dp),
                 contentAlignment = Alignment.Center
             ) {

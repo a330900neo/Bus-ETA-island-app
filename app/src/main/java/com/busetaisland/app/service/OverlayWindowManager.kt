@@ -23,6 +23,9 @@ import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.busetaisland.app.ui.overlay.DynamicIslandOverlayContent
 import com.busetaisland.app.ui.theme.BusEtaTheme
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -106,7 +109,49 @@ class OverlayWindowManager(private val context: Context, private val isAccessibi
                 setViewTreeSavedStateRegistryOwner(owner)
 
                 setContent {
-                    BusEtaTheme(darkTheme = true) {
+                    val overlayConfig by OverlayStateHolder.config.collectAsState()
+                    val isSystemDark = isSystemInDarkTheme()
+                    val isDarkTheme = when (overlayConfig.appTheme) {
+                        "light" -> false
+                        "dark" -> true
+                        "system" -> isSystemDark
+                        else -> true
+                    }
+
+                    val customBusColors = if (overlayConfig.appTheme == "custom") {
+                        val bg = androidx.compose.ui.graphics.Color(overlayConfig.islandCustomBgColorHex)
+                        val text = androidx.compose.ui.graphics.Color(overlayConfig.islandCustomTextColorHex)
+                        val secText = androidx.compose.ui.graphics.Color(overlayConfig.islandCustomSecondaryTextColorHex)
+                        val border = androidx.compose.ui.graphics.Color(overlayConfig.islandCustomBorderColorHex)
+                        val accent = androidx.compose.ui.graphics.Color(overlayConfig.islandCustomAccentColorHex)
+                        com.busetaisland.app.ui.theme.BusColors(
+                            background = bg,
+                            surface = bg,
+                            surfaceElevated = bg,
+                            surfaceVariant = bg.copy(alpha = 0.35f),
+                            textPrimary = text,
+                            textSecondary = secText,
+                            textMuted = secText,
+                            cardBorder = border,
+                            subtleBorder = border,
+                            primary = accent,
+                            onPrimary = bg,
+                            primaryContainer = accent.copy(alpha = 0.25f),
+                            onPrimaryContainer = accent,
+                            emeraldGreen = androidx.compose.ui.graphics.Color(0xFF86F8B6),
+                            emeraldContainer = androidx.compose.ui.graphics.Color(0xFF005234),
+                            roseAlert = androidx.compose.ui.graphics.Color(0xFFFFB4AB),
+                            roseContainer = androidx.compose.ui.graphics.Color(0xFF690005),
+                            amberWarning = androidx.compose.ui.graphics.Color(0xFFFFD56B),
+                            islandBlack = bg
+                        )
+                    } else null
+
+                    BusEtaTheme(
+                        darkTheme = isDarkTheme,
+                        appTheme = overlayConfig.appTheme,
+                        customColors = customBusColors
+                    ) {
                         DynamicIslandOverlayContent(
                             onExpandToggle = {
                                 OverlayStateHolder.toggleCollapsed()
@@ -264,6 +309,9 @@ class OverlayWindowManager(private val context: Context, private val isAccessibi
         p.x = (p.x + dx.toInt()).coerceIn(-maxOffsetX, maxOffsetX)
         p.y = (p.y + dy.toInt()).coerceIn(topLimit, bottomLimit)
 
+        val isNearTop = p.y <= topLimit + (35 * density).toInt()
+        OverlayStateHolder.setIsNearTop(isNearTop)
+
         try {
             overlayView?.let { windowManager.updateViewLayout(it, p) }
         } catch (e: Exception) {
@@ -272,6 +320,7 @@ class OverlayWindowManager(private val context: Context, private val isAccessibi
     }
 
     fun onDragFinished() {
+        OverlayStateHolder.setIsNearTop(false)
         val p = layoutParams ?: return
         collapsedX = p.x
         collapsedY = p.y

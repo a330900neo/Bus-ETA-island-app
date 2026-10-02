@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import androidx.activity.SystemBarStyle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -12,6 +13,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -40,6 +42,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -80,10 +83,78 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
+        if (com.busetaisland.app.service.OverlayStateHolder.config.value.isPaused) {
+            com.busetaisland.app.service.OverlayStateHolder.resumeTrackingAndOverlay(this)
+        }
+
         setContent {
-            BusEtaTheme(darkTheme = true) {
+            val overlayConfig by viewModel.overlayConfig.collectAsState()
+            val isSystemDark = isSystemInDarkTheme()
+            val isDarkTheme = when (overlayConfig.appTheme) {
+                "light" -> false
+                "dark" -> true
+                "system" -> isSystemDark
+                else -> true
+            }
+
+            LaunchedEffect(isDarkTheme) {
+                enableEdgeToEdge(
+                    statusBarStyle = if (isDarkTheme) {
+                        SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+                    } else {
+                        SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT)
+                    },
+                    navigationBarStyle = if (isDarkTheme) {
+                        SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+                    } else {
+                        SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT)
+                    }
+                )
+            }
+
+            val customBusColors = if (overlayConfig.appTheme == "custom") {
+                val bg = Color(overlayConfig.islandCustomBgColorHex)
+                val text = Color(overlayConfig.islandCustomTextColorHex)
+                val secText = Color(overlayConfig.islandCustomSecondaryTextColorHex)
+                val border = Color(overlayConfig.islandCustomBorderColorHex)
+                val accent = Color(overlayConfig.islandCustomAccentColorHex)
+                com.busetaisland.app.ui.theme.BusColors(
+                    background = com.busetaisland.app.ui.theme.DarkBusColors.background,
+                    surface = com.busetaisland.app.ui.theme.DarkBusColors.surface,
+                    surfaceElevated = com.busetaisland.app.ui.theme.DarkBusColors.surfaceElevated,
+                    surfaceVariant = bg.copy(alpha = 0.35f),
+                    textPrimary = text,
+                    textSecondary = secText,
+                    textMuted = secText,
+                    cardBorder = border,
+                    subtleBorder = border,
+                    primary = accent,
+                    onPrimary = bg,
+                    primaryContainer = accent.copy(alpha = 0.25f),
+                    onPrimaryContainer = accent,
+                    emeraldGreen = Color(0xFF86F8B6),
+                    emeraldContainer = Color(0xFF005234),
+                    roseAlert = Color(0xFFFFB4AB),
+                    roseContainer = Color(0xFF690005),
+                    amberWarning = Color(0xFFFFD56B),
+                    islandBlack = bg
+                )
+            } else null
+
+            BusEtaTheme(
+                darkTheme = isDarkTheme,
+                appTheme = overlayConfig.appTheme,
+                customColors = customBusColors
+            ) {
                 MainAppScreen(viewModel = viewModel)
             }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (com.busetaisland.app.service.OverlayStateHolder.config.value.isPaused) {
+            com.busetaisland.app.service.OverlayStateHolder.resumeTrackingAndOverlay(this)
         }
     }
 }

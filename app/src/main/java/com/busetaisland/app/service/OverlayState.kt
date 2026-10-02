@@ -48,7 +48,14 @@ data class OverlayDisplayConfig(
     val isWindowAtTop: Boolean = false, // True when window manager is at top center
     val isServiceRunning: Boolean = false,
     val isAccessibilityEnabled: Boolean = false,
-    val activeStopIndex: Int = 0
+    val activeStopIndex: Int = 0,
+    val isPaused: Boolean = false,
+    val appTheme: String = "dark", // "dark", "light", "system", "custom"
+    val islandCustomBgColorHex: Long = 0xFF000000,
+    val islandCustomTextColorHex: Long = 0xFFFFFFFF,
+    val islandCustomSecondaryTextColorHex: Long = 0xFF938F99,
+    val islandCustomBorderColorHex: Long = 0x38FFFFFF,
+    val islandCustomAccentColorHex: Long = 0xFFD0BCFF
 ) {
     val posX: Int get() = circlePosX
     val posY: Int get() = topVerticalOffset
@@ -79,6 +86,13 @@ object OverlayStateHolder {
     private const val KEY_FLIGHTDATA_EMAIL = "flightdata_email"
     private const val KEY_FLIGHTDATA_PASSWORD = "flightdata_password"
     private const val KEY_FLIGHTDATA_AUTH_TOKEN = "flightdata_auth_token"
+    private const val KEY_IS_PAUSED = "is_paused"
+    private const val KEY_APP_THEME = "app_theme"
+    private const val KEY_CUSTOM_BG_COLOR = "island_custom_bg_color"
+    private const val KEY_CUSTOM_TEXT_COLOR = "island_custom_text_color"
+    private const val KEY_CUSTOM_SEC_TEXT_COLOR = "island_custom_sec_text_color"
+    private const val KEY_CUSTOM_BORDER_COLOR = "island_custom_border_color"
+    private const val KEY_CUSTOM_ACCENT_COLOR = "island_custom_accent_color"
 
     private var sharedPreferences: SharedPreferences? = null
 
@@ -133,6 +147,13 @@ object OverlayStateHolder {
         val flightEmail = prefs.getString(KEY_FLIGHTDATA_EMAIL, "") ?: ""
         val flightPassword = prefs.getString(KEY_FLIGHTDATA_PASSWORD, "") ?: ""
         val flightToken = prefs.getString(KEY_FLIGHTDATA_AUTH_TOKEN, "") ?: ""
+        val isPaused = prefs.getBoolean(KEY_IS_PAUSED, false)
+        val appTheme = prefs.getString(KEY_APP_THEME, "dark") ?: "dark"
+        val customBg = prefs.getLong(KEY_CUSTOM_BG_COLOR, 0xFF000000)
+        val customText = prefs.getLong(KEY_CUSTOM_TEXT_COLOR, 0xFFFFFFFF)
+        val customSecText = prefs.getLong(KEY_CUSTOM_SEC_TEXT_COLOR, 0xFF938F99)
+        val customBorder = prefs.getLong(KEY_CUSTOM_BORDER_COLOR, 0x38FFFFFF)
+        val customAccent = prefs.getLong(KEY_CUSTOM_ACCENT_COLOR, 0xFFD0BCFF)
         val initialStatus = if (flightEmail.isNotBlank()) "已設定帳號 (Configured)" else "訪客模式 (Guest)"
 
         _config.value = _config.value.copy(
@@ -159,7 +180,14 @@ object OverlayStateHolder {
             flightdataEmail = flightEmail,
             flightdataPassword = flightPassword,
             flightdataAuthToken = flightToken,
-            flightdataLoginStatus = initialStatus
+            flightdataLoginStatus = initialStatus,
+            isPaused = isPaused,
+            appTheme = appTheme,
+            islandCustomBgColorHex = customBg,
+            islandCustomTextColorHex = customText,
+            islandCustomSecondaryTextColorHex = customSecText,
+            islandCustomBorderColorHex = customBorder,
+            islandCustomAccentColorHex = customAccent
         )
     }
 
@@ -190,7 +218,14 @@ object OverlayStateHolder {
             last.trackedFlightQuery == c.trackedFlightQuery &&
             last.flightdataEmail == c.flightdataEmail &&
             last.flightdataPassword == c.flightdataPassword &&
-            last.flightdataAuthToken == c.flightdataAuthToken
+            last.flightdataAuthToken == c.flightdataAuthToken &&
+            last.isPaused == c.isPaused &&
+            last.appTheme == c.appTheme &&
+            last.islandCustomBgColorHex == c.islandCustomBgColorHex &&
+            last.islandCustomTextColorHex == c.islandCustomTextColorHex &&
+            last.islandCustomSecondaryTextColorHex == c.islandCustomSecondaryTextColorHex &&
+            last.islandCustomBorderColorHex == c.islandCustomBorderColorHex &&
+            last.islandCustomAccentColorHex == c.islandCustomAccentColorHex
         ) {
             return // Skip unnecessary disk I/O when persistent fields have not changed
         }
@@ -219,6 +254,13 @@ object OverlayStateHolder {
             putString(KEY_FLIGHTDATA_EMAIL, c.flightdataEmail)
             putString(KEY_FLIGHTDATA_PASSWORD, c.flightdataPassword)
             putString(KEY_FLIGHTDATA_AUTH_TOKEN, c.flightdataAuthToken)
+            putBoolean(KEY_IS_PAUSED, c.isPaused)
+            putString(KEY_APP_THEME, c.appTheme)
+            putLong(KEY_CUSTOM_BG_COLOR, c.islandCustomBgColorHex)
+            putLong(KEY_CUSTOM_TEXT_COLOR, c.islandCustomTextColorHex)
+            putLong(KEY_CUSTOM_SEC_TEXT_COLOR, c.islandCustomSecondaryTextColorHex)
+            putLong(KEY_CUSTOM_BORDER_COLOR, c.islandCustomBorderColorHex)
+            putLong(KEY_CUSTOM_ACCENT_COLOR, c.islandCustomAccentColorHex)
             apply()
         }
     }
@@ -227,6 +269,49 @@ object OverlayStateHolder {
         val newConf = update(_config.value)
         _config.value = newConf
         persistConfig(newConf)
+    }
+
+    fun setAppTheme(theme: String) {
+        updateConfig { it.copy(appTheme = theme) }
+    }
+
+    fun setCustomThemeColors(
+        bgHex: Long,
+        textHex: Long,
+        secTextHex: Long,
+        borderHex: Long,
+        accentHex: Long
+    ) {
+        updateConfig {
+            it.copy(
+                appTheme = "custom",
+                islandCustomBgColorHex = bgHex,
+                islandCustomTextColorHex = textHex,
+                islandCustomSecondaryTextColorHex = secTextHex,
+                islandCustomBorderColorHex = borderHex,
+                islandCustomAccentColorHex = accentHex
+            )
+        }
+    }
+
+    fun setCustomBgColor(colorHex: Long) {
+        updateConfig { it.copy(appTheme = "custom", islandCustomBgColorHex = colorHex) }
+    }
+
+    fun setCustomTextColor(colorHex: Long) {
+        updateConfig { it.copy(appTheme = "custom", islandCustomTextColorHex = colorHex) }
+    }
+
+    fun setCustomSecondaryTextColor(colorHex: Long) {
+        updateConfig { it.copy(appTheme = "custom", islandCustomSecondaryTextColorHex = colorHex) }
+    }
+
+    fun setCustomBorderColor(colorHex: Long) {
+        updateConfig { it.copy(appTheme = "custom", islandCustomBorderColorHex = colorHex) }
+    }
+
+    fun setCustomAccentColor(colorHex: Long) {
+        updateConfig { it.copy(appTheme = "custom", islandCustomAccentColorHex = colorHex) }
     }
 
     fun setOverlayEnabled(enabled: Boolean) {
@@ -421,6 +506,51 @@ object OverlayStateHolder {
             list[idx]
         } else {
             _trackedBus.value
+        }
+    }
+
+    private val _isNearTop = MutableStateFlow(false)
+    val isNearTop: StateFlow<Boolean> = _isNearTop.asStateFlow()
+
+    private val _hideHoldProgress = MutableStateFlow(0f)
+    val hideHoldProgress: StateFlow<Float> = _hideHoldProgress.asStateFlow()
+
+    private val _isHideHoldActive = MutableStateFlow(false)
+    val isHideHoldActive: StateFlow<Boolean> = _isHideHoldActive.asStateFlow()
+
+    fun setIsNearTop(nearTop: Boolean) {
+        _isNearTop.value = nearTop
+    }
+
+    fun setHideHoldState(active: Boolean, progress: Float) {
+        _isHideHoldActive.value = active
+        _hideHoldProgress.value = progress.coerceIn(0f, 1f)
+    }
+
+    fun pauseAndHideOverlay(context: Context) {
+        setHideHoldState(false, 0f)
+        setIsNearTop(false)
+        updateConfig { it.copy(isPaused = true, isOverlayEnabled = false) }
+        try {
+            (context.applicationContext as? com.busetaisland.app.BusApp)?.repository?.locationTracker?.stopTracking()
+        } catch (e: Exception) {
+            // Ignore
+        }
+    }
+
+    fun resumeTrackingAndOverlay(context: Context) {
+        setHideHoldState(false, 0f)
+        setIsNearTop(false)
+        updateConfig { it.copy(isPaused = false, isOverlayEnabled = true) }
+        try {
+            val app = context.applicationContext as? com.busetaisland.app.BusApp
+            app?.repository?.locationTracker?.startTracking()
+            BusOverlayService.start(context)
+            stateScope.launch {
+                app?.repository?.triggerImmediateRefresh()
+            }
+        } catch (e: Exception) {
+            // Ignore
         }
     }
 }

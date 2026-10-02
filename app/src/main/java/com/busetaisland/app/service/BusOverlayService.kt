@@ -27,6 +27,7 @@ import kotlinx.coroutines.delay
 class BusOverlayService : Service() {
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private var overlayManager: OverlayWindowManager? = null
 
     private val screenStateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -38,12 +39,14 @@ class BusOverlayService : Service() {
                 }
                 Intent.ACTION_SCREEN_ON -> {
                     // Screen lit up: restore active GPS tracking, trigger immediate ETA/GPS refresh, auto-expand island
-                    repository.locationTracker.setScreenState(isScreenOn = true)
-                    serviceScope.launch {
-                        repository.triggerImmediateRefresh()
-                    }
-                    if (OverlayStateHolder.config.value.autoExpandOnScreenOn) {
-                        OverlayStateHolder.setCollapsed(false)
+                    if (!OverlayStateHolder.config.value.isPaused) {
+                        repository.locationTracker.setScreenState(isScreenOn = true)
+                        serviceScope.launch {
+                            repository.triggerImmediateRefresh()
+                        }
+                        if (OverlayStateHolder.config.value.autoExpandOnScreenOn) {
+                            OverlayStateHolder.setCollapsed(false)
+                        }
                     }
                 }
             }
@@ -57,6 +60,10 @@ class BusOverlayService : Service() {
 
         OverlayStateHolder.updateConfig { it.copy(isServiceRunning = true) }
 
+        if (BusAccessibilityService.instance == null) {
+            overlayManager = OverlayWindowManager(this, isAccessibility = false)
+        }
+
         val filter = IntentFilter().apply {
             addAction(Intent.ACTION_SCREEN_ON)
             addAction(Intent.ACTION_SCREEN_OFF)
@@ -64,11 +71,41 @@ class BusOverlayService : Service() {
         registerReceiver(screenStateReceiver, filter)
 
         val repository = (application as BusApp).repository
-        repository.locationTracker.startTracking(isScreenOff = false)
+        if (!OverlayStateHolder.config.value.isPaused) {
+            repository.locationTracker.startTracking(isScreenOff = false)
+        }
+
+        // Observe config changes to manage overlay visibility and paused tracking state
+        serviceScope.launch {
+            OverlayStateHolder.config.collectLatest { config ->
+                if (config.isPaused) {
+                    val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                    manager.notify(
+                        NOTIFICATION_ID,
+                        buildNotification("Bus ETA Island (已暫停)", "即時 ETA 追蹤已暫停，點擊此處或開啟 App 恢復")
+                    )
+                    if (BusAccessibilityService.instance == null) {
+                        overlayManager?.hideOverlay()
+                    }
+                    repository.locationTracker.stopTracking()
+                } else {
+                    if (config.isOverlayEnabled) {
+                        if (BusAccessibilityService.instance == null) {
+                            overlayManager?.showOverlay()
+                        }
+                    } else {
+                        if (BusAccessibilityService.instance == null) {
+                            overlayManager?.hideOverlay()
+                        }
+                    }
+                }
+            }
+        }
 
         serviceScope.launch {
             repository.allTrackedBusesState.collectLatest { buses ->
                 OverlayStateHolder.updateAllTrackedBuses(buses)
+                if (OverlayStateHolder.config.value.isPaused) return@collectLatest
                 val inRangeBuses = buses.filter { !it.isGeofenceEnabled || it.isInRange }
                 val active = inRangeBuses.firstOrNull() ?: OverlayStateHolder.getActiveBus() ?: buses.firstOrNull()
                 if (active != null) {
@@ -85,6 +122,9 @@ class BusOverlayService : Service() {
         // Listen for manual refresh requests from Island hold gesture
         serviceScope.launch {
             OverlayStateHolder.refreshRequests.collectLatest {
+                if (OverlayStateHolder.config.value.isPaused) {
+                    OverlayStateHolder.resumeTrackingAndOverlay(this@BusOverlayService)
+                }
                 OverlayStateHolder.setRefreshing(true)
                 repository.triggerImmediateRefresh()
                 delay(800L)
@@ -98,6 +138,9 @@ class BusOverlayService : Service() {
             ACTION_STOP_SERVICE -> {
                 stopSelf()
                 return START_NOT_STICKY
+            }
+            ACTION_RESUME_TRACKING -> {
+                OverlayStateHolder.resumeTrackingAndOverlay(this)
             }
             ACTION_TOGGLE_OVERLAY -> {
                 OverlayStateHolder.updateConfig { it.copy(isOverlayEnabled = !it.isOverlayEnabled) }
@@ -118,6 +161,8 @@ class BusOverlayService : Service() {
         } catch (e: Exception) {
             // Ignore
         }
+        overlayManager?.hideOverlay()
+        overlayManager = null
         OverlayStateHolder.updateConfig { it.copy(isServiceRunning = false) }
         val repository = (application as BusApp).repository
         repository.locationTracker.stopTracking()
@@ -141,6 +186,7 @@ class BusOverlayService : Service() {
 
     private fun buildNotification(title: String, content: String): Notification {
         val launchIntent = Intent(this, MainActivity::class.java).apply {
+            action = ACTION_RESUME_TRACKING
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
         val pendingIntent = PendingIntent.getActivity(
@@ -156,9 +202,12 @@ class BusOverlayService : Service() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
+        val displayTitle = if (OverlayStateHolder.config.value.isPaused) "Bus ETA Island (已暫停)" else title
+        val displayContent = if (OverlayStateHolder.config.value.isPaused) "即時 ETA 追蹤已暫停，點擊此處或開啟 App 恢復" else content
+
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle(title)
-            .setContentText(content)
+            .setContentTitle(displayTitle)
+            .setContentText(displayContent)
             .setSmallIcon(android.R.drawable.ic_menu_compass)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
@@ -179,6 +228,7 @@ class BusOverlayService : Service() {
         const val ACTION_STOP_SERVICE = "com.busetaisland.app.ACTION_STOP_SERVICE"
         const val ACTION_TOGGLE_OVERLAY = "com.busetaisland.app.ACTION_TOGGLE_OVERLAY"
         const val ACTION_TOGGLE_COLLAPSE = "com.busetaisland.app.ACTION_TOGGLE_COLLAPSE"
+        const val ACTION_RESUME_TRACKING = "com.busetaisland.app.ACTION_RESUME_TRACKING"
 
         fun start(context: Context) {
             val intent = Intent(context, BusOverlayService::class.java)

@@ -261,6 +261,40 @@ class BusViewModel(application: Application) : AndroidViewModel(application) {
         OverlayStateHolder.setEtaUnit(unit)
     }
 
+    fun setAppTheme(theme: String) {
+        OverlayStateHolder.setAppTheme(theme)
+    }
+
+    fun setCustomThemeColors(
+        bgHex: Long,
+        textHex: Long,
+        secTextHex: Long,
+        borderHex: Long,
+        accentHex: Long
+    ) {
+        OverlayStateHolder.setCustomThemeColors(bgHex, textHex, secTextHex, borderHex, accentHex)
+    }
+
+    fun setCustomBgColor(colorHex: Long) {
+        OverlayStateHolder.setCustomBgColor(colorHex)
+    }
+
+    fun setCustomTextColor(colorHex: Long) {
+        OverlayStateHolder.setCustomTextColor(colorHex)
+    }
+
+    fun setCustomSecondaryTextColor(colorHex: Long) {
+        OverlayStateHolder.setCustomSecondaryTextColor(colorHex)
+    }
+
+    fun setCustomBorderColor(colorHex: Long) {
+        OverlayStateHolder.setCustomBorderColor(colorHex)
+    }
+
+    fun setCustomAccentColor(colorHex: Long) {
+        OverlayStateHolder.setCustomAccentColor(colorHex)
+    }
+
     fun updateRadius(radiusMeters: Float, isGeofenceEnabled: Boolean = true) {
         viewModelScope.launch {
             repository.updateRadiusSetting(radiusMeters, isGeofenceEnabled)

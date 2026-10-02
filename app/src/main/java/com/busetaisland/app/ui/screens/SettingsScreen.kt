@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -30,6 +32,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Speed
@@ -129,6 +132,200 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = BusTextSecondary
             )
+        }
+
+        // App Theme Selection Card
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, BusSubtleBorder, RoundedCornerShape(22.dp))
+                    .testTag("settings_theme_card"),
+                colors = CardDefaults.cardColors(containerColor = BusDarkSurface),
+                shape = RoundedCornerShape(22.dp)
+            ) {
+                Column(modifier = Modifier.padding(18.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(BusDarkSurfaceVariant, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Palette,
+                                contentDescription = "Theme",
+                                tint = BusLavenderPrimary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = "主題外觀 (App Theme)",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp,
+                                color = BusTextPrimary
+                            )
+                            Text(
+                                text = "選擇深色主題、白色/淺色主題或跟隨系統設定",
+                                fontSize = 11.sp,
+                                color = BusLavenderPrimary
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        val themeOptions = listOf(
+                            "dark" to "深色",
+                            "light" to "白色",
+                            "system" to "系統",
+                            "custom" to "自訂主題"
+                        )
+
+                        themeOptions.forEach { (mode, label) ->
+                            val isSelected = overlayConfig.appTheme == mode
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = { viewModel.setAppTheme(mode) },
+                                label = {
+                                    Text(
+                                        text = label,
+                                        fontSize = 11.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                    )
+                                },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = BusLavenderPrimary,
+                                    selectedLabelColor = BusLavenderOnPrimary,
+                                    containerColor = BusDarkSurfaceElevated,
+                                    labelColor = BusTextSecondary
+                                ),
+                                border = FilterChipDefaults.filterChipBorder(
+                                    enabled = true,
+                                    selected = isSelected,
+                                    borderColor = BusSubtleBorder,
+                                    selectedBorderColor = BusLavenderPrimary
+                                ),
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+
+                    if (overlayConfig.appTheme == "custom") {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        HorizontalDivider(thickness = 0.5.dp, color = BusSubtleBorder)
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Text(
+                            text = "一鍵風格主題預設 (Preset Palettes)",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            color = BusTextPrimary
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        val presets = listOf(
+                            PresetPalette("🖤 曜石黑", 0xFF000000, 0xFFFFFFFF, 0xFF938F99, 0x38FFFFFF, 0xFFD0BCFF),
+                            PresetPalette("🤍 極光白", 0xFFFFFFFF, 0xFF191C1E, 0xFF74777F, 0x1F000000, 0xFF6750A4),
+                            PresetPalette("🌌 星空藍", 0xFF0F172A, 0xFFF8FAFC, 0xFF94A3B8, 0x3338BDF8, 0xFF38BDF8),
+                            PresetPalette("🍇 霓虹紫", 0xFF1E1B4B, 0xFFF3E8FF, 0xFFC084FC, 0x40C084FC, 0xFFE879F9),
+                            PresetPalette("🌲 翡翠綠", 0xFF064E3B, 0xFFECFDF5, 0xFFA7F3D0, 0x3310B981, 0xFF34D399),
+                            PresetPalette("🌇 夕陽橙", 0xFF451A03, 0xFFFFFBEB, 0xFFFDE68A, 0x33F59E0B, 0xFFFBBF24)
+                        )
+
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            items(presets.size) { idx ->
+                                val p = presets[idx]
+                                val isSelectedPreset = overlayConfig.islandCustomBgColorHex == p.bgHex && overlayConfig.islandCustomAccentColorHex == p.accentHex
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(Color(p.bgHex))
+                                        .border(
+                                            width = if (isSelectedPreset) 2.dp else 1.dp,
+                                            color = if (isSelectedPreset) BusLavenderPrimary else Color(p.borderHex),
+                                            shape = RoundedCornerShape(12.dp)
+                                        )
+                                        .clickable {
+                                            viewModel.setCustomThemeColors(p.bgHex, p.textHex, p.secTextHex, p.borderHex, p.accentHex)
+                                        }
+                                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(text = p.name, color = Color(p.textHex), fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "靈動島五大自訂調色盤 (Fine-tune Island Colors)",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            color = BusTextPrimary
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // 1. Background Color
+                        ColorPickerRow(
+                            label = "靈動島背景 (Background)",
+                            selectedHex = overlayConfig.islandCustomBgColorHex,
+                            colorSwatches = listOf(0xFF000000, 0xFF18181B, 0xFF0F172A, 0xFF1E1B4B, 0xFF064E3B, 0xFF451A03, 0xFFFFFFFF, 0xFFF3F4F6),
+                            onColorSelected = { viewModel.setCustomBgColor(it) }
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // 2. Primary Text Color
+                        ColorPickerRow(
+                            label = "主要文字 (Text Primary)",
+                            selectedHex = overlayConfig.islandCustomTextColorHex,
+                            colorSwatches = listOf(0xFFFFFFFF, 0xFF191C1E, 0xFFF8FAFC, 0xFFF3E8FF, 0xFFECFDF5, 0xFF00E5FF, 0xFFFFD600, 0xFFFFB4AB),
+                            onColorSelected = { viewModel.setCustomTextColor(it) }
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // 3. Secondary Text Color
+                        ColorPickerRow(
+                            label = "次要文字 (Text Secondary)",
+                            selectedHex = overlayConfig.islandCustomSecondaryTextColorHex,
+                            colorSwatches = listOf(0xFF938F99, 0xFF74777F, 0xFF94A3B8, 0xFFC084FC, 0xFFA7F3D0, 0xFFFDE68A, 0xFFCBD5E1),
+                            onColorSelected = { viewModel.setCustomSecondaryTextColor(it) }
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // 4. Border / Ring Color
+                        ColorPickerRow(
+                            label = "外框邊條 (Border / Ring)",
+                            selectedHex = overlayConfig.islandCustomBorderColorHex,
+                            colorSwatches = listOf(0x38FFFFFF, 0x1F000000, 0x3338BDF8, 0x40C084FC, 0x3310B981, 0x33F59E0B, 0x5500E5FF),
+                            onColorSelected = { viewModel.setCustomBorderColor(it) }
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // 5. Accent Color
+                        ColorPickerRow(
+                            label = "主要標誌 (Accent Color)",
+                            selectedHex = overlayConfig.islandCustomAccentColorHex,
+                            colorSwatches = listOf(0xFFD0BCFF, 0xFF6750A4, 0xFF38BDF8, 0xFFE879F9, 0xFF34D399, 0xFFFBBF24, 0xFFFF5252, 0xFF00E676),
+                            onColorSelected = { viewModel.setCustomAccentColor(it) }
+                        )
+                    }
+                }
+            }
         }
 
         // Dynamic Island Spatial & Physics Customization Card
@@ -1559,6 +1756,58 @@ fun SettingsScreen(
 
         item {
             Spacer(modifier = Modifier.height(24.dp))
+        }
+    }
+}
+
+private data class PresetPalette(
+    val name: String,
+    val bgHex: Long,
+    val textHex: Long,
+    val secTextHex: Long,
+    val borderHex: Long,
+    val accentHex: Long
+)
+
+@Composable
+private fun ColorPickerRow(
+    label: String,
+    selectedHex: Long,
+    colorSwatches: List<Long>,
+    onColorSelected: (Long) -> Unit
+) {
+    Column {
+        Text(text = label, fontSize = 11.5.sp, color = BusTextSecondary)
+        Spacer(modifier = Modifier.height(4.dp))
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            colorSwatches.forEach { hex ->
+                val isSel = selectedHex == hex
+                Box(
+                    modifier = Modifier
+                        .size(26.dp)
+                        .clip(CircleShape)
+                        .background(Color(hex))
+                        .border(
+                            width = if (isSel) 2.5.dp else 1.dp,
+                            color = if (isSel) BusLavenderPrimary else BusSubtleBorder,
+                            shape = CircleShape
+                        )
+                        .clickable { onColorSelected(hex) },
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (isSel) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(BusLavenderPrimary)
+                        )
+                    }
+                }
+            }
         }
     }
 }

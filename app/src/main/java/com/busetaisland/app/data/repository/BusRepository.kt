@@ -179,6 +179,10 @@ class BusRepository(
         // Periodic ETA & Geofence updater loop (Parallelized async for low CPU wake time & battery saving)
         repositoryScope.launch {
             while (true) {
+                if (OverlayStateHolder.config.value.isPaused) {
+                    delay(3000L)
+                    continue
+                }
                 try {
                     val currentList = _allTrackedBusesState.value
                     if (currentList.isNotEmpty()) {
@@ -204,6 +208,10 @@ class BusRepository(
         // Periodic Weather Info updater loop (every 5 minutes or on demand)
         repositoryScope.launch {
             while (true) {
+                if (OverlayStateHolder.config.value.isPaused) {
+                    delay(5000L)
+                    continue
+                }
                 try {
                     fetchWeatherInfo()
                 } catch (e: Exception) {
@@ -216,6 +224,10 @@ class BusRepository(
         // Periodic Rain Nowcast updater loop (respects cooldown setting; 0 = Off)
         repositoryScope.launch {
             while (true) {
+                if (OverlayStateHolder.config.value.isPaused) {
+                    delay(5000L)
+                    continue
+                }
                 try {
                     val cooldownMin = OverlayStateHolder.config.value.nowcastCooldownMinutes
                     if (cooldownMin > 0) {
@@ -233,6 +245,10 @@ class BusRepository(
         // Periodic Flight Tracking updater loop (refreshes every 30s when enabled)
         repositoryScope.launch {
             while (true) {
+                if (OverlayStateHolder.config.value.isPaused) {
+                    delay(5000L)
+                    continue
+                }
                 try {
                     val conf = OverlayStateHolder.config.value
                     if (conf.isFlightTrackingEnabled && conf.trackedFlightQuery.isNotBlank()) {
